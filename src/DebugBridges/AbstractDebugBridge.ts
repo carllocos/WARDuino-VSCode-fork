@@ -292,7 +292,9 @@ export abstract class AbstractDebugBridge extends EventEmitter implements DebugB
     }
 
     protected getSelectedProxiesByIndex(): number[] {
-        return [...this.selectedProxies].map((callback: ProxyCallItem) => (callback.index));
+        return [...this.selectedProxies].filter((proxyItem: ProxyCallItem) => {
+            return proxyItem.isSelected();
+        }).map((callback: ProxyCallItem) => (callback.index));
     }
 
     public setSelectedProxies(proxies: Set<ProxyCallItem>) {

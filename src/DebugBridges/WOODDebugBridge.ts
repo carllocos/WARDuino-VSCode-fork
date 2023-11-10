@@ -39,11 +39,11 @@ export class WOODDebugBridge extends EmulatedDebugBridge {
 
     async updateSelectedProxies(proxy: ProxyCallItem) {
         console.log('Updating proxies');
-        if (proxy.isSelected()) {
-            this.selectedProxies.add(proxy);
-        } else {
-            this.selectedProxies.delete(proxy);
-        }
+        // if (proxy.isSelected()) {
+        //     this.selectedProxies.add(proxy);
+        // } else {
+        //     this.selectedProxies.delete(proxy);
+        // }
         await this.specifyProxyCalls();
     };
 
