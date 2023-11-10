@@ -192,6 +192,29 @@ class HexaStateMessages {
     }
 }
 
+function hexToFloat(hexString: string): number {
+    // Remove "0x" prefix if it exists
+    hexString = hexString.replace(/^0x/i, '');
+
+    // Parse the hex string to an integer
+    const intValue = parseInt(hexString, 16);
+
+    // Extract the sign bit (bit 31)
+    const signBit = (intValue & 0x80000000) >>> 31;
+
+    // Extract the exponent bits (bits 23-30)
+    const exponentBits = ((intValue & 0x7F800000) >>> 23) - 127;
+
+    // Extract the fraction bits (bits 0-22)
+    const fractionBits = (intValue & 0x007FFFFF) | 0x00800000; // Add hidden bit
+
+    // Calculate the floating-point value
+    const floatValue = (signBit ? -1 : 1) * Math.pow(2, exponentBits) * (fractionBits / Math.pow(2, 23));
+
+    return floatValue;
+}
+
+
 export class WOODState {
     private unparsedJSON = '';
     public callbacks = '';
@@ -200,7 +223,21 @@ export class WOODState {
 
     constructor(state: string, woodResponse: WOODDumpResponse) {
         this.sourceState = state;
-        this.woodResponse = woodResponse;
+        this.woodResponse = this.cleanResponse(woodResponse);
+    }
+
+    private cleanResponse(woodResponse: WOODDumpResponse): WOODDumpResponse {
+        if(woodResponse.stack){
+            woodResponse.stack = woodResponse.stack.map(sv=>{
+                if((sv.type === 'F32' || sv.type === 'f32')){
+                    if(typeof(sv.value) === 'string' && /^[0-9A-Fa-f]+$/.test(sv.value)){
+                        sv.value = hexToFloat(sv.value);
+                    }
+                }
+                return sv;
+            });
+        }
+        return woodResponse;
     }
 
     getState(): WOODDumpResponse {
