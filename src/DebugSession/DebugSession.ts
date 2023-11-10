@@ -401,9 +401,10 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
         this.debugBridge?.popEvent();
     }
 
-    public toggleProxy(resource: ProxyCallItem) {
+    public async toggleProxy(resource: ProxyCallItem) {
         resource.toggle();
-        this.debugBridge?.updateSelectedProxies(resource);
+        await this.debugBridge?.updateSelectedProxies(resource);
+        await this.debugBridge?.updateSelectedMock();
         this.proxyCallsProvider?.refresh();
     }
 

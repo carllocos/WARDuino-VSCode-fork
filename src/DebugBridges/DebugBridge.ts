@@ -51,6 +51,8 @@ export interface DebugBridge extends EventEmitter {
   // Adds or removes the current callback depending on whether is selected or not respectively
   updateSelectedProxies(proxy: ProxyCallItem): Promise<void>;
 
+  updateSelectedMock(): Promise<void>;
+
   setSelectedProxies(proxies: Set<ProxyCallItem>): void;
 
   getSelectedProxies(): Set<ProxyCallItem>;

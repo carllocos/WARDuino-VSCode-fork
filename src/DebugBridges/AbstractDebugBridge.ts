@@ -306,6 +306,24 @@ export abstract class AbstractDebugBridge extends EventEmitter implements DebugB
     }
 
 
+    public async updateSelectedMock(): Promise<void> {
+        const funs_to_mock = Array.from(this.selectedProxies).filter(func=>{
+            return !func.isSelected() && this.deviceConfig.getMockConfig().functions.has(func.index);
+        }).map(func=>func.index);
+
+        const requests: Promise<string>[] = funs_to_mock.map(fun_idx =>{
+            const target_func = this.deviceConfig.getMockConfig().functions.get(fun_idx);
+            console.info(`Mock: local function ${fun_idx} mocked by ${target_func}`);
+            return this.client!.request(makeMockRequest(fun_idx, target_func!));
+        });
+        const replies = await Promise.all(requests);
+        replies.forEach(r=>{
+            console.log(`Got Mock reply ${r}`);
+        });
+        return ;
+    }
+
+
     // Getters and Setters
 
     public getSourceMap(): SourceMap {
@@ -477,4 +495,51 @@ export abstract class AbstractDebugBridge extends EventEmitter implements DebugB
         const runtimeState: RuntimeState = new RuntimeState(line, this.sourceMap);
         this.updateRuntimeState(runtimeState);
     }
+}
+
+
+function encodeLEB128(n: number): Uint8Array {
+    const result = [];
+    while (true) {
+        let _byte: number = n & 0x7F; // Get the lowest 7 bits of the number
+        n >>>= 7;
+        if (n !== 0) {
+            _byte |= 0x80; // Set the highest bit to 1 to indicate continuation
+        }
+        result.push(_byte);
+        if (n === 0) {
+            break;
+        }
+    }
+    return new Uint8Array(result);
+}
+
+function serializeAroundRequest(kind: number, funid: number, targetID: number){
+    const encodedFidx = Buffer.concat([encodeLEB128(funid)]).toString('hex');
+    const encodedSchedule = '03'; // always
+    const encodedRemoteCallHookID = '01'; // remote call
+    const encodedRemoteFidx = Buffer.concat([encodeLEB128(targetID)]).toString('hex');
+    return `${InterruptTypes.interruptAroundFunction}${encodedFidx}${encodedSchedule}${encodedRemoteCallHookID}${encodedRemoteFidx}\n`;
+    //return '50' + buf_kind + Buffer.concat([buf_f, buf_t]).toString('hex') + '\n';
+}
+
+interface MockAnswer {
+    interrupt: number,
+    kind: number,
+    error_code?: number
+}
+
+function makeMockRequest(fun_to_mock: number, mock_fun_id: number): Request {
+    return {
+        dataToSend: serializeAroundRequest(1, fun_to_mock, mock_fun_id),
+        expectedResponse: (line: string) =>{
+            try{
+                const answer :  MockAnswer = JSON.parse(line);
+                return true;
+            }
+            catch(e){
+                return false;
+            }
+        }
+    };
 }

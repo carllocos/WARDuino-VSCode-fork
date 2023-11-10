@@ -18,6 +18,9 @@ export enum InterruptTypes {
     interruptUPDATEStackValue = '24',
 
     interruptINVOKE = '40',
+
+    interruptAroundFunction = '50',
+
     // Pull debugging messages
     interruptSnapshot = '60',
     interruptLoadSnapshot = '62',
