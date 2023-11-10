@@ -66,10 +66,6 @@ export class WasmState {
             missings.push(ExecutionStateType.stackState);
         }
 
-        if (this.state.pc_error === undefined || this.state.exception_msg === undefined) {
-            missings.push(ExecutionStateType.errorState);
-        }
-
         if (this.state.callbacks === undefined) {
             missings.push(ExecutionStateType.callbacksState);
         }
@@ -110,10 +106,6 @@ export class WasmState {
             }
             else if (m === ExecutionStateType.stackState) {
                 this.state.stack = otherState.getRawStack();
-            }
-            else if (m === ExecutionStateType.errorState) {
-                this.state.pc_error = otherState.getRawPCError();
-                this.state.exception_msg = otherState.getRawExceptionMsg();
             }
             else if (m === ExecutionStateType.callbacksState) {
                 this.state.callbacks = otherState.getRawCallbacks();

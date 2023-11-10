@@ -47,10 +47,6 @@ export class StateRequest {
         this.pushState(ExecutionStateType.breakpointState);
     }
 
-    public includeError() {
-        this.pushState(ExecutionStateType.errorState);
-    }
-
     public includeCallbackMappings() {
         this.pushState(ExecutionStateType.callbacksState);
     }

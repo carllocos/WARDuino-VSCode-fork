@@ -13,7 +13,6 @@ export enum ExecutionStateType {
     stackState = '08',
     callbacksState = '09',
     eventsState = '0a',
-    errorState = '0b',
 }
 
 export const numberExecutionStateTypes = 11;
@@ -218,7 +217,6 @@ export class WOODState {
 
         // State Messages
         this.serializePC(stateMessages);
-        this.serializeException(stateMessages);
         this.serializeBPs(stateMessages);
         this.serializeStack(stateMessages);
         this.serializeTable(stateMessages);
@@ -587,27 +585,6 @@ export class WOODState {
         }
         console.log(`Frame: type=${frame.type} sp=${frame.sp} fp=${frame.fp} ra=${frame.ra} ${res_str}`);
         return `${type}${sp}${fp}${ra}${rest}`;
-    }
-
-    private serializeException(stateMsgs: HexaStateMessages) {
-        if (!!!this.woodResponse.pc_error) {
-            return;
-        }
-        console.log('==========');
-        console.log('PC_ERROR');
-        console.log('----------');
-        const pcError = this.serializePointer(this.woodResponse.pc_error);
-        let exceptionMsg = '';
-        let exceptionMsgSize = 0;
-        if (!!this.woodResponse.exception_msg && this.woodResponse.exception_msg !== '') {
-            exceptionMsg = this.woodResponse.exception_msg;
-            exceptionMsgSize = exceptionMsg.length;
-        }
-        console.log(`PC_ERROR: pc_error=${this.woodResponse.pc_error} exception_msg(#${exceptionMsgSize} chars)=${exceptionMsg}`);
-        const sizeInHexa = HexaEncoder.serializeUInt32BE(exceptionMsgSize);
-        const msgInHexa = HexaEncoder.serializeString(exceptionMsg);
-        const payload = `${ExecutionStateType.errorState}${pcError}${sizeInHexa}${msgInHexa}`;
-        stateMsgs.addPayload(payload);
     }
 
     private serializeCallbacksMapping(stateMsgs: HexaStateMessages) {
