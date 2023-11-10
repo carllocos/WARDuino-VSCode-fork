@@ -299,12 +299,7 @@ export abstract class AbstractDebugBridge extends EventEmitter implements DebugB
         this.selectedProxies = proxies;
     }
 
-    public updateSelectedProxies(proxy: ProxyCallItem) {
-        if (proxy.isSelected()) {
-            this.selectedProxies.add(proxy);
-        } else {
-            this.selectedProxies.delete(proxy);
-        }
+    public async updateSelectedProxies(proxy: ProxyCallItem): Promise<void> {
         console.warn('Only WOOD Emulator Debug Bridge needs proxies');
     }
 
