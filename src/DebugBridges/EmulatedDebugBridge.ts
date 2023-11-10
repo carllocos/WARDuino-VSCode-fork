@@ -151,11 +151,17 @@ export class EmulatedDebugBridge extends AbstractDebugBridge {
             }
         }
 
+        if(this.deviceConfig.mockEnabled()){
+            args.push('--mock');
+            args.push(`${this.deviceConfig.getMockConfig().port}`);
+            args.push('--disable-strict-module-load');
+        }
+
         if (this.deviceConfig.onStartConfig.pause) {
             args.push('--paused');
         }
         return spawn(`${this.sdk}/build-emu/wdcli`, args);
-        // return spawn(`echo`, ['"Listening"']);
+        // return spawn('echo', ['"Listening"']);
     }
 
 }

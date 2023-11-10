@@ -69,6 +69,12 @@ export class WOODDebugBridge extends EmulatedDebugBridge {
             }
         }
 
+        if(this.deviceConfig.mockEnabled()){
+            args.push('--mock');
+            args.push(`${this.deviceConfig.getMockConfig().port}`);
+            args.push('--disable-strict-module-load');
+        }
+
         if (this.deviceConfig.onStartConfig.pause) {
             args.push('--paused');
         }
