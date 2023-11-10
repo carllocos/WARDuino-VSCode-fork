@@ -4,6 +4,28 @@ import * as vscode from 'vscode';
 import { readFileSync } from 'fs';
 import { Breakpoint, BreakpointPolicy } from './State/Breakpoint';
 
+interface MockConfig {
+    port: number;
+    host: string;
+    functions: Map<number, number>;
+}
+
+function DeserializeMockConfig(obj: any): MockConfig{
+    const port: number = Number(obj.port);
+    const host: string =  obj.hasOwnProperty('host') ? obj.host : 'localhost';
+    const funcs_to_mock : number[]  = obj.func_ids;
+    const mock_ids : number[]  = obj.mock_ids;
+    const mappings: Map<number, number> = new Map();
+    for (let i = 0; i < funcs_to_mock.length; i++) {
+        mappings.set(funcs_to_mock[i], mock_ids[i]);
+    }
+    return {
+        port: port,
+        host: host,
+        functions: mappings
+    };
+}
+
 class InvalidDebuggerConfiguration extends Error {
     constructor(errormsg: string) {
         super(`InvalidDebuggerConfiguration: ${errormsg}`);
@@ -147,6 +169,9 @@ export class DeviceConfig {
     private breakPoliciesActive = false;
     private breakpointPolicy: BreakpointPolicy = BreakpointPolicy.default;
 
+
+    private mock?: MockConfig;
+
     constructor(obj: any) {
         if (obj.hasOwnProperty('wifiCredentials')) {
             const credentials = WiFiCredentials.validate(obj.wifiCredentials);
@@ -219,6 +244,9 @@ export class DeviceConfig {
             this.breakPoliciesActive = true;
             this.breakpointPolicy = this.validateBreakpointPolicy(obj.breakpointPolicy);
         }
+        if (obj.hasOwnProperty('mock')) {
+            this.mock = DeserializeMockConfig(obj.mock);
+        }
     }
 
     needsProxyToAnotherVM(): boolean {
@@ -244,6 +272,15 @@ export class DeviceConfig {
     setBreakpointPolicy(policy: BreakpointPolicy) {
         this.breakpointPolicy = policy;
     }
+
+    mockEnabled(): boolean {
+        return !!this.mock;
+    }
+
+    getMockConfig(): MockConfig {
+        return this.mock!;
+    }
+
 
     private validateBreakpointPolicy(policy: any): BreakpointPolicy {
         if(typeof(policy) !== 'string'){
@@ -285,20 +322,36 @@ export class DeviceConfig {
         const pause = true;
         const os = new OnStartConfig(flash, updateSource, pause);
 
-        return new DeviceConfig({
+
+        const deviceConfig: any = {
             name: deviceName,
             ip: '127.0.0.1',
             port: DeviceConfig.defaultDebugPort,
             debugMode: DeviceConfig.emulatedDebugMode,
             proxy: pc,
             onStart: os,
-            breakpointPoliciesEnabled: false,
-        });
+            breakpointPoliciesEnabled: false
+        };
+
+        const launchConfig = vscode.workspace.getConfiguration('launch');
+        const WARDuinoConfig = launchConfig.configurations[0];
+        const mockConfig: any  = WARDuinoConfig.mock;
+        if(!!mockConfig){
+            deviceConfig['mock'] = {
+                port: mockConfig.port,
+                host: mockConfig.host,
+                func_ids: mockConfig.funcs_to_mock,
+                mock_ids: mockConfig.mock_ids
+
+            };
+        }
+        return new DeviceConfig(deviceConfig);
     }
 
     static fromObject(obj: any): DeviceConfig {
         return new DeviceConfig(obj);
     }
+
 
 
     static fromWorkspaceConfig(): DeviceConfig {
@@ -320,8 +373,17 @@ export class DeviceConfig {
             'breakpointPoliciesEnabled': enableBreakpointPolicy,
         };
 
-        if(enableBreakpointPolicy){
-            deviceConfig.breakpointPolicy =  config.get('warduino.ExperimentalBreakpointPolicies.policy');
+        const launchConfig = vscode.workspace.getConfiguration('launch');
+        const WARDuinoConfig = launchConfig.configurations[0];
+        const mockConfig: any  = WARDuinoConfig.mock;
+        if(!!mockConfig){
+            deviceConfig['mock'] = {
+                port: mockConfig.port,
+                host: mockConfig.host,
+                func_ids: mockConfig.funcs_to_mock,
+                mock_ids: mockConfig.mock_ids
+
+            };
         }
 
         return DeviceConfig.fromObject(deviceConfig);
