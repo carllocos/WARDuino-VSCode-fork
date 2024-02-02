@@ -7,7 +7,7 @@ import { HardwareDebugBridge } from './HardwareDebugBridge';
 import * as vscode from 'vscode';
 import { SourceMap } from '../State/SourceMap';
 import { WOODDebugBridge } from './WOODDebugBridge';
-import { DeviceConfig } from '../DebuggerConfig';
+import { OldDeviceConfig } from '../DebuggerConfig';
 
 function getConfig(id: string): string {
     const config: string | undefined = vscode.workspace.getConfiguration().get(id);
@@ -18,7 +18,7 @@ function getConfig(id: string): string {
 }
 
 export class DebugBridgeFactory {
-    static makeDebugBridge(file: string, deviceConfig: DeviceConfig, sourceMap: SourceMap, target: RunTimeTarget, tmpdir: string): DebugBridge {
+    static makeDebugBridge(file: string, deviceConfig: OldDeviceConfig, sourceMap: SourceMap, target: RunTimeTarget, tmpdir: string): DebugBridge {
         let fileType = getFileExtension(file);
         let bridge;
         switch (fileType) {

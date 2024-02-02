@@ -1,27 +1,24 @@
 import * as vscode from 'vscode';
 import { ProviderResult, TreeItem, TreeItemCollapsibleState } from 'vscode';
-import { VariableInfo } from '../State/VariableInfo';
 import { RuntimeViewRefreshInterface } from './RuntimeViewRefreshInterface';
-import { RuntimeState } from '../State/RuntimeState';
-import { DebugBridge } from '../DebugBridges/DebugBridge';
+import { OldRuntimeState} from '../State/RuntimeState';
+import { WASM, WASMValueIndexed } from 'wasmito';
+import { Context} from '../State/context';
 
 export class StackProvider implements vscode.TreeDataProvider<StackItem>, RuntimeViewRefreshInterface {
     private _onDidChangeTreeData: vscode.EventEmitter<StackItem | undefined | null | void> = new vscode.EventEmitter<StackItem | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<StackItem | undefined | null | void> = this._onDidChangeTreeData.event;
-    private debugBridge: DebugBridge;
-
-    constructor(debugBridge: DebugBridge) {
-        this.debugBridge = debugBridge;
-    }
-
-    setDebugBridge(debugBridge: DebugBridge) {
-        this.debugBridge = debugBridge;
-    }
+    private runtimeState?: Context;
 
     getChildren(element?: StackItem): ProviderResult<StackItem[]> {
         if (element === undefined || element.collapsibleState !== TreeItemCollapsibleState.None) {
-            const runtimeState = this.debugBridge.getCurrentState();
-            const stack = runtimeState?.getValuesStack().map(sv => new StackItem(sv)).reverse();
+            const stack = this.runtimeState?.stack.values.map((v: WASMValueIndexed) => {
+                const _type = WASM.typeToString(v.type);
+                if(_type === undefined){
+                    throw new Error(`Stack provider received an unknown wasm value type ${_type}`);
+                }
+                return new StackItem(v.value, v.idx, _type);
+            }).reverse();
             return stack ?? [];
         }
         return undefined;
@@ -31,17 +28,20 @@ export class StackProvider implements vscode.TreeDataProvider<StackItem>, Runtim
         return element;
     }
 
-    refreshView(runtimeState?: RuntimeState): void {
+    oldRefreshView(runtimeState?: OldRuntimeState): void {
+        console.log('StackProvider not calling oldRefreshView');
+        // this._onDidChangeTreeData.fir
+    }
+
+    refreshView(runtimeState: Context): void {
+        this.runtimeState = runtimeState; 
         this._onDidChangeTreeData.fire();
     }
 }
 
 export class StackItem extends vscode.TreeItem {
-    private value: VariableInfo;
-
-    constructor(value: VariableInfo, treeItemCollapsibleState: TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
-        const label = `Value${value.index} (${value.type}): ${value.value}`;
+    constructor(value: number, idx: number, type: string, treeItemCollapsibleState: TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
+        const label = `Value${idx} (${type}): ${value}`;
         super(label, treeItemCollapsibleState);
-        this.value = value;
     }
 }

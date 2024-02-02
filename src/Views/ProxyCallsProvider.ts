@@ -3,7 +3,8 @@ import * as vscode from 'vscode';
 import { ProviderResult, ThemeIcon, TreeItem } from 'vscode';
 import { DebugBridge } from '../DebugBridges/DebugBridge';
 import { RuntimeViewRefreshInterface } from './RuntimeViewRefreshInterface';
-import { RuntimeState } from '../State/RuntimeState';
+import { OldRuntimeState} from '../State/RuntimeState';
+import { Context} from '../State/context';
 
 export class ProxyCallsProvider implements vscode.TreeDataProvider<ProxyCallItem>, RuntimeViewRefreshInterface {
     private debugBridge: DebugBridge;
@@ -30,7 +31,14 @@ export class ProxyCallsProvider implements vscode.TreeDataProvider<ProxyCallItem
         this.debugBridge = debugBridge;
     }
 
-    refreshView(runtimeState?: RuntimeState) {
+    oldRefreshView(runtimeState?: OldRuntimeState) {
+        console.log('TODO remove oldRefrehsView');
+        // this._onDidChangeTreeData.fire();
+    }
+
+    refreshView(runtimeState: Context): void {
+        console.log('TODO refrehsView Proxies');
+        // this.runtimeState = runtimeState; 
         this._onDidChangeTreeData.fire();
     }
 

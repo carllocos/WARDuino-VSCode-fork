@@ -1,7 +1,9 @@
-import { RuntimeState } from '../State/RuntimeState';
+import { OldRuntimeState } from '../State/RuntimeState';
+import { Context} from '../State/context';
 
 export interface RuntimeViewRefreshInterface {
 
-    refreshView(runtimeState?: RuntimeState): void;
+    oldRefreshView(runtimeState?: OldRuntimeState): void;
+    refreshView(runtimeState?: Context): void;
 
 }

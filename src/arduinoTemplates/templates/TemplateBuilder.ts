@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'fs';
 import * as path from 'path';
-import { DeviceConfig, ProxyConfig, WiFiCredentials } from '../../DebuggerConfig';
+import { OldDeviceConfig, ProxyConfig, WiFiCredentials } from '../../DebuggerConfig';
 
 
 export class ArduinoTemplateBuilder {
@@ -10,7 +10,7 @@ export class ArduinoTemplateBuilder {
         ArduinoTemplateBuilder.sdkpath = `${path2sdk}/platforms/`;
     }
 
-    static build(deviceConfig: DeviceConfig) {
+    static build(deviceConfig: OldDeviceConfig) {
         if (deviceConfig.usesWiFi()) {
             ArduinoTemplateBuilder.buildArduinoWithWifi(deviceConfig);
         }
@@ -19,7 +19,7 @@ export class ArduinoTemplateBuilder {
         }
     }
 
-    static buildArduinoSerial(deviceConfig: DeviceConfig, outputDir: string = '', outputFilename: string = 'Arduino.ino') {
+    static buildArduinoSerial(deviceConfig: OldDeviceConfig, outputDir: string = '', outputFilename: string = 'Arduino.ino') {
         const templateName = 'Arduino.template';
         const path2template = path.join(ArduinoTemplateBuilder.sdkpath, 'Arduino');
         const buf: Buffer = readFileSync(path.join(path2template, templateName));
@@ -32,7 +32,7 @@ export class ArduinoTemplateBuilder {
     }
 
 
-    static buildArduinoWithWifi(deviceConfig: DeviceConfig, outputDir: string = '', outputFilename: string = 'Arduino-socket.ino'): boolean {
+    static buildArduinoWithWifi(deviceConfig: OldDeviceConfig, outputDir: string = '', outputFilename: string = 'Arduino-socket.ino'): boolean {
         if (!deviceConfig.usesWiFi()) {
             throw (new Error('ArduinoTemplateBuilder: cannot build Wifi based arduino without wifi credentials'));
         }

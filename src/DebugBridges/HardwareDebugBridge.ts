@@ -2,14 +2,14 @@ import { AbstractDebugBridge, EventsMessages, Messages } from './AbstractDebugBr
 import { InterruptTypes } from './InterruptTypes';
 import { exec, spawn } from 'child_process';
 import { SourceMap } from '../State/SourceMap';
-import { DeviceConfig } from '../DebuggerConfig';
+import { OldDeviceConfig } from '../DebuggerConfig';
 import * as path from 'path';
 import { LoggingSerialMonitor } from '../Channels/SerialConnection';
 import { ClientSideSocket } from '../Channels/ClientSideSocket';
 import { ChannelInterface } from '../Channels/ChannelInterface';
 import { SerialChannel } from '../Channels/SerialChannel';
 import { ProxifyRequest, Request, StateRequest } from './APIRequest';
-import { RuntimeState } from '../State/RuntimeState';
+import { OldRuntimeState } from '../State/RuntimeState';
 import { BreakpointPolicy } from '../State/Breakpoint';
 
 export class HardwareDebugBridge extends AbstractDebugBridge {
@@ -20,7 +20,7 @@ export class HardwareDebugBridge extends AbstractDebugBridge {
     private logginSerialConnection?: LoggingSerialMonitor;
 
     constructor(
-        deviceConfig: DeviceConfig,
+        deviceConfig: OldDeviceConfig,
         sourceMap: SourceMap,
         tmpdir: string,
         warduinoSDK: string) {
@@ -186,12 +186,12 @@ export class HardwareDebugBridge extends AbstractDebugBridge {
         await this.client!.request(ProxifyRequest);
     }
 
-    refresh(): Promise<RuntimeState> {
+    refresh(): Promise<OldRuntimeState> {
         return new Promise(async (resolve) => {
             const stateRequest = this.createStateRequest();
             try {
                 const response = await this.client!.request(stateRequest);
-                const runtimeState: RuntimeState = new RuntimeState(response, this.sourceMap);
+                const runtimeState: OldRuntimeState = new OldRuntimeState(response, this.sourceMap);
                 resolve(runtimeState);
             }
             catch (err) {

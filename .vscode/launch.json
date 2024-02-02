@@ -15,7 +15,10 @@
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
-			"preLaunchTask": "${defaultBuildTask}"
+			"preLaunchTask": "${defaultBuildTask}",
+			"env": {
+				"LogLevel": "debug",
+			}
 		},
 		{
 			"name": "Server",
@@ -23,7 +26,7 @@
 			"request": "launch",
 			"cwd": "${workspaceFolder}",
 			"program": "${workspaceFolder}/src/RunDebugger.ts",
-			"args": [ ],
+			"args": [],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
@@ -43,32 +46,39 @@
 			"preLaunchTask": "${defaultBuildTask}"
 		},
 		{
-            "type": "node",
-            "request": "launch",
-            "name": "Mocha Unit Tests",
-            "program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
-            "args": [
-                "--require", "ts-node/register",
-                "-u", "tdd",
-                "--timeout", "999999",
-                "--colors", "--recursive",
-                "${workspaceFolder}/src/test/UnitTests/**/*.ts"
-            ],
-            "internalConsoleOptions": "openOnSessionStart"
-        },
+			"type": "node",
+			"request": "launch",
+			"name": "Mocha Unit Tests",
+			"program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
+			"args": [
+				"--require",
+				"ts-node/register",
+				"-u",
+				"tdd",
+				"--timeout",
+				"999999",
+				"--colors",
+				"--recursive",
+				"${workspaceFolder}/src/test/UnitTests/**/*.ts"
+			],
+			"internalConsoleOptions": "openOnSessionStart"
+		},
 		{
-            "type": "node",
-            "request": "launch",
-            "name": "Debug Bridge Unit Tests",
-            "program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
-            "args": [
-                "--require", "ts-node/register",
-                "-u", "tdd",
-                "--timeout", "999999",
-                "--colors",
-                "${workspaceFolder}/src/test/UnitTests/TestDebuggerBridge.ts"
-            ],
-            "internalConsoleOptions": "openOnSessionStart"
-        }
+			"type": "node",
+			"request": "launch",
+			"name": "Debug Bridge Unit Tests",
+			"program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
+			"args": [
+				"--require",
+				"ts-node/register",
+				"-u",
+				"tdd",
+				"--timeout",
+				"999999",
+				"--colors",
+				"${workspaceFolder}/src/test/UnitTests/TestDebuggerBridge.ts"
+			],
+			"internalConsoleOptions": "openOnSessionStart"
+		}
 	]
 }

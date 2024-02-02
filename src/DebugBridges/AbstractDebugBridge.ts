@@ -6,10 +6,10 @@ import {ExecutionStateType, WOODDumpResponse, WOODState} from '../State/WOODStat
 import {InterruptTypes} from './InterruptTypes';
 import {FunctionInfo} from '../State/FunctionInfo';
 import {ProxyCallItem} from '../Views/ProxyCallsProvider';
-import {RuntimeState} from '../State/RuntimeState';
+import {OldRuntimeState} from '../State/RuntimeState';
 import {Breakpoint, BreakpointPolicy, UniqueSet} from '../State/Breakpoint';
 import {HexaEncoder} from '../Util/hexaEncoding';
-import {DeviceConfig} from '../DebuggerConfig';
+import {OldDeviceConfig} from '../DebuggerConfig';
 import {DebuggingTimeline} from '../State/DebuggingTimeline';
 import {ChannelInterface} from '../Channels/ChannelInterface';
 import {
@@ -23,7 +23,7 @@ import {
     UpdateStateRequest
 } from './APIRequest';
 import {EventItem} from '../Views/EventsProvider';
-import EventEmitter = require('events');
+import {EventEmitter} from 'events';
 
 export class Messages {
     public static readonly compiling: string = 'Compiling the code';
@@ -77,10 +77,10 @@ export abstract class AbstractDebugBridge extends EventEmitter implements DebugB
     // History (time-travel)
     protected timeline: DebuggingTimeline = new DebuggingTimeline();
 
-    public readonly deviceConfig: DeviceConfig;
+    public readonly deviceConfig: OldDeviceConfig;
     public outOfPlaceActive = false;
 
-    protected constructor(deviceConfig: DeviceConfig, sourceMap: SourceMap) {
+    protected constructor(deviceConfig: OldDeviceConfig, sourceMap: SourceMap) {
         super();
         this.sourceMap = sourceMap;
         const callbacks = sourceMap?.importInfos ?? [];
@@ -122,7 +122,7 @@ export abstract class AbstractDebugBridge extends EventEmitter implements DebugB
             const doNotSave = {includeInTimeline: false};
             this.updateRuntimeState(runtimeState, doNotSave);
         } else {
-            let runtimeState: RuntimeState | undefined;
+            let runtimeState: OldRuntimeState | undefined;
             do {
                 await this.client?.request({
                     dataToSend: InterruptTypes.interruptSTEP + '\n',
@@ -148,7 +148,7 @@ export abstract class AbstractDebugBridge extends EventEmitter implements DebugB
         }
     }
 
-    abstract refresh(): Promise<RuntimeState>;
+    abstract refresh(): Promise<OldRuntimeState>;
 
 
     public getBreakpoints(): Breakpoint[] {
@@ -341,7 +341,7 @@ export abstract class AbstractDebugBridge extends EventEmitter implements DebugB
         }
         const req = stateRequest.generateRequest();
         const response = await this.client!.request(req);
-        const missingState = new RuntimeState(response, this.sourceMap);
+        const missingState = new OldRuntimeState(response, this.sourceMap);
         const state = this.getCurrentState();
         state!.copyMissingState(missingState);
         const pc = state!.getProgramCounter();
@@ -358,11 +358,11 @@ export abstract class AbstractDebugBridge extends EventEmitter implements DebugB
         return this.timeline;
     }
 
-    getCurrentState(): RuntimeState | undefined {
+    getCurrentState(): OldRuntimeState | undefined {
         return this.timeline.getActiveState();
     }
 
-    updateRuntimeState(runtimeState: RuntimeState, opts?: { refreshViews?: boolean, includeInTimeline?: boolean }) {
+    updateRuntimeState(runtimeState: OldRuntimeState, opts?: { refreshViews?: boolean, includeInTimeline?: boolean }) {
         const includeInTimeline = opts?.includeInTimeline ?? true;
         if (includeInTimeline && this.timeline.isActiveStatePresent()) {
             this.timeline.addRuntime(runtimeState.deepcopy());
@@ -492,7 +492,7 @@ export abstract class AbstractDebugBridge extends EventEmitter implements DebugB
     }
 
     private onExceptionCallback(line: string) {
-        const runtimeState: RuntimeState = new RuntimeState(line, this.sourceMap);
+        const runtimeState: OldRuntimeState = new OldRuntimeState(line, this.sourceMap);
         this.updateRuntimeState(runtimeState);
     }
 }

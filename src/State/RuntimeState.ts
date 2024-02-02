@@ -13,7 +13,7 @@ function hash(s: string) {
     return h;
 }
 
-export class RuntimeState {
+export class OldRuntimeState {
     private id: number = 0;
     private programCounter: number = 0;
     private startAddress: number = 0;
@@ -91,8 +91,8 @@ export class RuntimeState {
         return this.callstack[this.callstack.length - 1].index;
     }
 
-    public deepcopy(): RuntimeState {
-        const copy = new RuntimeState(this.source, this.sourceMap);
+    public deepcopy(): OldRuntimeState {
+        const copy = new OldRuntimeState(this.source, this.sourceMap);
         copy.id = this.id;
         copy.programCounter = this.programCounter;
         copy.startAddress = this.startAddress;
@@ -189,7 +189,7 @@ export class RuntimeState {
         }
     }
 
-    public copyMissingState(otherState: RuntimeState) {
+    public copyMissingState(otherState: OldRuntimeState) {
         this.wasmState.copyMissingState(otherState.getWasmState());
         this.fillState();
     }

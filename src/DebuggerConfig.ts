@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 // TODO validate configuration
 import { readFileSync } from 'fs';
 import { Breakpoint, BreakpointPolicy } from './State/Breakpoint';
+import { DeviceConfig, DeploymentMode, VMConfigArgs, VMConfiguration, DeviceConfigArgs, listAvailableBoards, BoardBaudRate, listAllFQBN } from 'wasmito';
 
 interface MockConfig {
     port: number;
@@ -145,11 +146,11 @@ export class ProxyConfig {
     }
 }
 
-export class DeviceConfig {
+export class OldDeviceConfig {
 
     static readonly emulatedDebugMode: string = 'emulated';
     static readonly embeddedDebugMode: string = 'embedded';
-    static readonly allowedModes: Set<string> = new Set<string>([DeviceConfig.emulatedDebugMode, DeviceConfig.embeddedDebugMode]);
+    static readonly allowedModes: Set<string> = new Set<string>([OldDeviceConfig.emulatedDebugMode, OldDeviceConfig.embeddedDebugMode]);
     static readonly defaultDebugPort: number = 8300;
 
 
@@ -158,7 +159,7 @@ export class DeviceConfig {
     public name: string = '';
     public port: number = -1;
     public ip: string = '';
-    public debugMode: string = DeviceConfig.emulatedDebugMode;
+    public debugMode: string = OldDeviceConfig.emulatedDebugMode;
     public proxyConfig: undefined | ProxyConfig;
     public onStartConfig: OnStartConfig;
 
@@ -184,14 +185,14 @@ export class DeviceConfig {
             this.port = obj.port;
         }
         else {
-            this.port = DeviceConfig.defaultDebugPort;
+            this.port = OldDeviceConfig.defaultDebugPort;
         }
 
-        if (DeviceConfig.allowedModes.has(obj.debugMode)) {
+        if (OldDeviceConfig.allowedModes.has(obj.debugMode)) {
             this.debugMode = obj.debugMode;
         }
         else {
-            throw (new InvalidDebuggerConfiguration(`No debugmode provided. Options: '${DeviceConfig.embeddedDebugMode}' or '${DeviceConfig.emulatedDebugMode}'`));
+            throw (new InvalidDebuggerConfiguration(`No debugmode provided. Options: '${OldDeviceConfig.embeddedDebugMode}' or '${OldDeviceConfig.emulatedDebugMode}'`));
         }
         if (obj.hasOwnProperty('proxy')) {
             this.proxyConfig = new ProxyConfig(obj.proxy);
@@ -227,7 +228,7 @@ export class DeviceConfig {
 
         if (obj.hasOwnProperty('name')) {
             this.name = obj.name;
-        } else if(this.debugMode === DeviceConfig.embeddedDebugMode){
+        } else if(this.debugMode === OldDeviceConfig.embeddedDebugMode){
             this.name = 'device unknown';
             if(this.ip !== ''){
                 this.name = this.ip;
@@ -250,11 +251,11 @@ export class DeviceConfig {
     }
 
     needsProxyToAnotherVM(): boolean {
-        return !!this.proxyConfig && this.debugMode === DeviceConfig.emulatedDebugMode;
+        return !!this.proxyConfig && this.debugMode === OldDeviceConfig.emulatedDebugMode;
     }
 
     isForHardware(): boolean {
-        return this.debugMode === DeviceConfig.embeddedDebugMode;
+        return this.debugMode === OldDeviceConfig.embeddedDebugMode;
     }
 
     usesWiFi(): boolean {
@@ -296,15 +297,15 @@ export class DeviceConfig {
         return found;
     }
 
-    static defaultDeviceConfig(name: string = 'emulated-vm'): DeviceConfig {
-        return new DeviceConfig({
+    static defaultDeviceConfig(name: string = 'emulated-vm'): OldDeviceConfig {
+        return new OldDeviceConfig({
             name: name,
-            port: DeviceConfig.defaultDebugPort,
-            debugMode: DeviceConfig.emulatedDebugMode
+            port: OldDeviceConfig.defaultDebugPort,
+            debugMode: OldDeviceConfig.emulatedDebugMode
         });
     }
 
-    static configForProxy(deviceName: string, mcuConfig: DeviceConfig) {
+    static configForProxy(deviceName: string, mcuConfig: OldDeviceConfig) {
         const pc = {
             port: mcuConfig.proxyConfig?.port,
             ip: mcuConfig.ip,
@@ -326,8 +327,8 @@ export class DeviceConfig {
         const deviceConfig: any = {
             name: deviceName,
             ip: '127.0.0.1',
-            port: DeviceConfig.defaultDebugPort,
-            debugMode: DeviceConfig.emulatedDebugMode,
+            port: OldDeviceConfig.defaultDebugPort,
+            debugMode: OldDeviceConfig.emulatedDebugMode,
             proxy: pc,
             onStart: os,
             breakpointPoliciesEnabled: false
@@ -345,21 +346,21 @@ export class DeviceConfig {
 
             };
         }
-        return new DeviceConfig(deviceConfig);
+        return new OldDeviceConfig(deviceConfig);
     }
 
-    static fromObject(obj: any): DeviceConfig {
-        return new DeviceConfig(obj);
+    static fromObject(obj: any): OldDeviceConfig {
+        return new OldDeviceConfig(obj);
     }
 
 
 
-    static fromWorkspaceConfig(): DeviceConfig {
+    static fromWorkspaceConfig():  OldDeviceConfig{
         const config = vscode.workspace.getConfiguration();
         const baudRate: string = config.get('warduino.Baudrate') || '115200';
         const enableBreakpointPolicy = !!config.get('warduino.ExperimentalBreakpointPolicies.enabled');
         const debugMode: string = config.get('warduino.DebugMode')!;
-        const flashOnStart = debugMode === DeviceConfig.embeddedDebugMode ? config.get('warduino.FlashOnStart') : false;
+        const flashOnStart = debugMode === OldDeviceConfig.embeddedDebugMode ? config.get('warduino.FlashOnStart') : false;
         const deviceConfig: any = {
             'debugMode': debugMode,
             'serialPort': config.get('warduino.Port'),
@@ -386,6 +387,192 @@ export class DeviceConfig {
             };
         }
 
-        return DeviceConfig.fromObject(deviceConfig);
+        return OldDeviceConfig.fromObject(deviceConfig);
     }
+}
+
+export enum DebuggingMode {
+    remoteDebugging = 0,
+    edward = 1,
+}
+
+const legacyTargetDeviceMapping= new Map<string, DeploymentMode>([
+    ['development', DeploymentMode.DevVM],
+    ['mcu', DeploymentMode.MCUVM],
+]);
+
+const debuggingModesMapping = new Map<string, DebuggingMode>([
+    ['remote-debugging', DebuggingMode.remoteDebugging],
+    ['edward', DebuggingMode.edward],
+]);
+
+
+export interface UserConfig {
+    program: string;
+    debuggingMode: DebuggingMode;
+    target: DeploymentMode;
+
+
+    serialPort?: string;
+    baudrate?: number,
+    boardName?: string,
+    fqbn?: string
+
+    existingVM?: boolean;
+    toolPortExistingVM?: number;
+    serverPortForProxyCall?: number;
+}
+
+export function createUserConfigFromLaunchArgs(lauchArguments: any): Promise<UserConfig> {
+    const args = validateVSCodeLaunchArgs(lauchArguments);
+    return fillMissingValues(args);
+} 
+
+
+function validateVSCodeLaunchArgs(lauchArguments: any):  UserConfig {
+    if(typeof lauchArguments !== 'object'){
+        throw new InvalidDebuggerConfiguration(`launchArguments are expected to be an object. Given ${typeof(lauchArguments)}`);
+    }
+
+    const program = lauchArguments.program;
+    if(program === undefined || typeof program !== 'string') {
+        throw new InvalidDebuggerConfiguration(`program is mandatory and expected to be string Given ${typeof(program)}`);
+    }
+
+    const selectedTarget = lauchArguments.target;
+    if(selectedTarget === undefined || typeof selectedTarget !== 'string'){
+        throw new InvalidDebuggerConfiguration(`Target is mandatory and expected to be a string either 'development' or 'mcu'. Given ${selectedTarget}`);
+    }
+    const target =  legacyTargetDeviceMapping.get(selectedTarget);
+    if(target === undefined){
+        throw new InvalidDebuggerConfiguration(`unsupported target. Given ${selectedTarget}`);
+    }
+
+    const selectedDebugMode = lauchArguments.debuggingMode;
+    if(selectedDebugMode === undefined || typeof selectedDebugMode !== 'string'){
+        throw new InvalidDebuggerConfiguration(`debuggingMode is mandatory and expected to be a string either 'remote-debugging' or 'edward'. Given ${selectedDebugMode}`);
+    }
+    const debugMode =  debuggingModesMapping.get(selectedDebugMode);
+    if(debugMode === undefined){
+        throw new InvalidDebuggerConfiguration(`unsupported debugging mode. Given ${selectedDebugMode}`);
+    }
+    
+    if(lauchArguments.existingVM !== undefined && typeof lauchArguments.existingVM !== 'boolean'){
+        throw new InvalidDebuggerConfiguration(`existingVM option should be a boolean current type ${typeof lauchArguments.existingVM}`);
+    }
+    if(lauchArguments.toolPortExistingVM !== undefined && typeof lauchArguments.toolPortExistingVM !== 'number'){
+        throw new InvalidDebuggerConfiguration(`toolPortExistingVM option should be a number current type ${typeof lauchArguments.toolPortExistingVM}`);
+    }
+
+    if(lauchArguments.existingVM !== undefined && lauchArguments.toolPortExistingVM === undefined){
+        throw new InvalidDebuggerConfiguration('toolPortExistingVM option should be set when existingVM is also enabled');
+    }
+    else if(lauchArguments.existingVM === undefined && lauchArguments.toolPortExistingVM !== undefined){
+        throw new InvalidDebuggerConfiguration('existingVM option should be set when toolPortExistingVM is also enabled');
+    }
+
+    if(lauchArguments.serverPortForProxyCall !== undefined && typeof lauchArguments.serverPortForProxyCall !== 'number'){
+        throw new InvalidDebuggerConfiguration('serverPortForProxyCall option should be a number');
+    }
+
+    const args: UserConfig = {
+        program,
+        target,
+        debuggingMode: debugMode,
+        existingVM: lauchArguments.existingVM,
+        toolPortExistingVM: lauchArguments.toolPortExistingVM,
+        serverPortForProxyCall: lauchArguments.serverPortForProxyCall
+    };
+
+    const selectedSerialPort = lauchArguments.serialPort;
+    if(selectedSerialPort !== undefined){
+        if(typeof selectedSerialPort !== 'string'){
+            throw new InvalidDebuggerConfiguration('serialPort is expected to be a string');
+        }
+        else{
+            args.serialPort = selectedSerialPort;
+        }
+    }
+
+    const selectedFQBN = lauchArguments.fqbn;
+    if(selectedFQBN !== undefined){
+        if(typeof selectedFQBN !== 'string'){
+            throw new InvalidDebuggerConfiguration('fqbn is expected to be a string');
+        }
+        else{
+            args.fqbn = selectedFQBN;
+        }
+    }else if(target === DeploymentMode.MCUVM){
+        throw new InvalidDebuggerConfiguration('fqbn is mandatory when targetting a MCU');
+    }
+
+
+    const selectedBaudrate = lauchArguments.baudRate;
+    if(selectedBaudrate !== undefined){
+        if(typeof selectedBaudrate !== 'number'){
+            throw new InvalidDebuggerConfiguration('baudrate is expected to be a number');
+        }
+        else{
+            args.baudrate = selectedBaudrate;
+        }
+    }
+    return args;
+}
+
+async function fillMissingValues(args: UserConfig): Promise<UserConfig> {
+    if(args.target !== DeploymentMode.MCUVM){
+        return args;
+    }
+
+    // case where 
+    if(args.serialPort === undefined){
+        console.info('No serial port set for Board');
+        console.info('searching for a serial port to use');
+        const boards = await listAvailableBoards();
+        if (boards.length === 0) {
+            const errMsg = 'no serialPort provided nor a connected board detected';
+            console.error(errMsg);
+            throw new Error(errMsg);
+        }
+        args.serialPort = boards[0];
+    }
+
+    if(args.baudrate === undefined){
+        console.info('No baudrate set');
+        console.info(`failling back to default ${BoardBaudRate.BD_115200}`);
+        args.baudrate = BoardBaudRate.BD_115200;
+    }
+
+    const fqbns = await listAllFQBN();
+    const targetBoard = fqbns.find((board) => {
+        return board.fqbn === args.fqbn;
+    });
+    if (targetBoard === undefined) {
+        const errMsg = `No board found with fqbn ${args.fqbn}`;
+        console.error(errMsg);
+        throw new Error(errMsg);
+    }
+    args.fqbn = targetBoard.fqbn;
+    if(targetBoard.boardName !=='' ){
+        args.boardName = targetBoard.boardName;
+    }
+    return args;
+}
+
+
+export function createVMConfig(userConfig: UserConfig):  VMConfigArgs {
+    const  vmConfigArgs: VMConfigArgs = {
+        program: userConfig.program,
+        disableStrictModuleLoad: true
+    };
+
+    if(userConfig.target === DeploymentMode.MCUVM) {
+        if(userConfig.serialPort !== undefined){
+            vmConfigArgs.serialPort = userConfig.serialPort;
+        }
+        if(userConfig.baudrate !==undefined ){
+            vmConfigArgs.baudrate = userConfig.baudrate;
+        }
+    }
+    return vmConfigArgs;
 }

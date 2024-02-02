@@ -1,8 +1,8 @@
-import { RuntimeState } from './RuntimeState';
+import { OldRuntimeState } from './RuntimeState';
 
 export class DebuggingTimeline {
 
-    private runtimes: RuntimeState[];
+    private runtimes: OldRuntimeState[];
     private activeStateIdx: number;
 
     constructor() {
@@ -10,7 +10,7 @@ export class DebuggingTimeline {
         this.runtimes = [];
     }
 
-    public getActiveState(): RuntimeState | undefined {
+    public getActiveState(): OldRuntimeState | undefined {
         return this.getStateFromIndex(this.activeStateIdx);
     }
 
@@ -18,11 +18,11 @@ export class DebuggingTimeline {
         return this.activeStateIdx == -1 ? undefined : this.activeStateIdx;
     }
 
-    public addRuntime(runtimeState: RuntimeState) {
+    public addRuntime(runtimeState: OldRuntimeState) {
         this.runtimes.push(runtimeState);
     }
 
-    public getLastState(): RuntimeState | undefined {
+    public getLastState(): OldRuntimeState | undefined {
         if (this.runtimes.length > 0) {
             return this.runtimes[this.runtimes.length - 1];
         }
@@ -41,14 +41,14 @@ export class DebuggingTimeline {
         return this.getStateFromIndex(0);
     }
 
-    public getStateFromIndex(idx: number): RuntimeState | undefined {
+    public getStateFromIndex(idx: number): OldRuntimeState | undefined {
         if (idx < 0 || idx >= this.runtimes.length || this.runtimes.length == 0) {
             return undefined;
         }
         return this.runtimes[idx];
     }
 
-    public advanceTimeline(): RuntimeState | undefined {
+    public advanceTimeline(): OldRuntimeState | undefined {
         let state = undefined;
         if (this.activeStateIdx + 1 < this.runtimes.length) {
             this.activeStateIdx += 1;
@@ -62,7 +62,7 @@ export class DebuggingTimeline {
         this.activeStateIdx = this.runtimes.length - 1;
     }
 
-    public goBackTimeline(): RuntimeState | undefined {
+    public goBackTimeline(): OldRuntimeState | undefined {
         let state = undefined;
         if (this.activeStateIdx >= 1) {
             this.activeStateIdx -= 1;
@@ -80,7 +80,7 @@ export class DebuggingTimeline {
         return this.activeStateIdx === 0;
     }
 
-    public getRuntimesChronologically(): RuntimeState[] {
+    public getRuntimesChronologically(): OldRuntimeState[] {
         return this.runtimes;
     }
 

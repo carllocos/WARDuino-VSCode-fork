@@ -2,10 +2,10 @@ import { VariableInfo } from '../State/VariableInfo';
 import { WOODState } from '../State/WOODState';
 import { SourceMap } from '../State/SourceMap';
 import { ProxyCallItem } from '../Views/ProxyCallsProvider';
-import { RuntimeState } from '../State/RuntimeState';
+import { OldRuntimeState } from '../State/RuntimeState';
 import { Breakpoint } from '../State/Breakpoint';
 import { DebuggingTimeline } from '../State/DebuggingTimeline';
-import { DeviceConfig } from '../DebuggerConfig';
+import { OldDeviceConfig } from '../DebuggerConfig';
 import { EventEmitter } from 'stream';
 
 export interface DebugBridge extends EventEmitter {
@@ -20,13 +20,13 @@ export interface DebugBridge extends EventEmitter {
 
   getDebuggingTimeline(): DebuggingTimeline;
 
-  getCurrentState(): RuntimeState | undefined;
+  getCurrentState(): OldRuntimeState | undefined;
 
   getSourceMap(): SourceMap;
 
   getBreakpoints(): Breakpoint[];
 
-  updateRuntimeState(runtimeState: RuntimeState, opts?: { refreshViews?: boolean, includeInTimeline?: boolean }): void;
+  updateRuntimeState(runtimeState: OldRuntimeState, opts?: { refreshViews?: boolean, includeInTimeline?: boolean }): void;
 
   isUpdateOperationAllowed(): boolean;
 
@@ -63,7 +63,7 @@ export interface DebugBridge extends EventEmitter {
 
   unsetBreakPoint(breakpoint: Breakpoint | number): void;
 
-  refresh(): Promise<RuntimeState>;
+  refresh(): Promise<OldRuntimeState>;
 
   disconnect(): void;
 
@@ -80,6 +80,6 @@ export interface DebugBridge extends EventEmitter {
 
   updateGlobal(updateGlobal: VariableInfo): Promise<void>;
 
-  getDeviceConfig(): DeviceConfig;
+  getDeviceConfig(): OldDeviceConfig;
 
 }

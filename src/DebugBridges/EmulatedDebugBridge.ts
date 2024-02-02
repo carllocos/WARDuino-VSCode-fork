@@ -3,9 +3,9 @@ import { AbstractDebugBridge, EventsMessages } from './AbstractDebugBridge';
 import { SourceMap } from '../State/SourceMap';
 import { Readable } from 'stream';
 import { ReadlineParser } from 'serialport';
-import { DeviceConfig } from '../DebuggerConfig';
+import { OldDeviceConfig } from '../DebuggerConfig';
 import { ClientSideSocket } from '../Channels/ClientSideSocket';
-import { RuntimeState } from '../State/RuntimeState';
+import { OldRuntimeState } from '../State/RuntimeState';
 import { ChannelInterface } from '../Channels/ChannelInterface';
 import { StateRequest } from './APIRequest';
 
@@ -17,7 +17,7 @@ export class EmulatedDebugBridge extends AbstractDebugBridge {
     protected readonly sdk: string;
     private cp?: ChildProcess;
 
-    constructor(config: DeviceConfig, sourceMap: SourceMap, tmpdir: string,
+    constructor(config: OldDeviceConfig, sourceMap: SourceMap, tmpdir: string,
         warduinoSDK: string) {
         super(config, sourceMap);
 
@@ -58,7 +58,7 @@ export class EmulatedDebugBridge extends AbstractDebugBridge {
         }
     }
 
-    public refresh(): Promise<RuntimeState> {
+    public refresh(): Promise<OldRuntimeState> {
         return new Promise(async (resolve, reject) => {
             const stateRequest = new StateRequest();
             stateRequest.includePC();
@@ -70,7 +70,7 @@ export class EmulatedDebugBridge extends AbstractDebugBridge {
             const req = stateRequest.generateRequest();
             try {
                 const response = await this.client!.request(req);
-                const runtimeState: RuntimeState = new RuntimeState(response, this.sourceMap);
+                const runtimeState: OldRuntimeState = new OldRuntimeState(response, this.sourceMap);
                 resolve(runtimeState);
             }
             catch (err) {

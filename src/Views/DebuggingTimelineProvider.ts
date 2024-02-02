@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import { ProviderResult, TreeItem, TreeItemCollapsibleState } from 'vscode';
-import { RuntimeState } from '../State/RuntimeState';
+import { OldRuntimeState } from '../State/RuntimeState';
 import { DebugBridge } from '../DebugBridges/DebugBridge';
 import { RuntimeViewRefreshInterface } from './RuntimeViewRefreshInterface';
 import {getLocationForAddress} from '../State/SourceMap';
+import { Context} from '../State/context';
 
 export enum AllowedAction {
     Save = 'save',
@@ -40,7 +41,7 @@ export class DebuggingTimelineProvider implements vscode.TreeDataProvider<Timeli
         if (element === undefined && !!this.view) {
             const timeline = this.debugBridge.getDebuggingTimeline();
             const states = timeline.getRuntimesChronologically();
-            this.items = states.map((rs: RuntimeState, idx: number) => {
+            this.items = states.map((rs: OldRuntimeState, idx: number) => {
                 let act = AllowedAction.None;
                 if (rs.hasAllState()) {
                     act = AllowedAction.DebugExternally;
@@ -76,7 +77,12 @@ export class DebuggingTimelineProvider implements vscode.TreeDataProvider<Timeli
         this.debugBridge = debugBridge;
     }
 
-    refreshView(runtimeState?: RuntimeState) {
+    oldRefreshView(runtimeState?: OldRuntimeState) {
+        this._onDidChangeTreeData.fire();
+    }
+
+    refreshView(runtimeState?: Context) {
+        console.log('TODO TimeLine provider view');
         this._onDidChangeTreeData.fire();
     }
 
@@ -94,7 +100,7 @@ export class DebuggingTimelineProvider implements vscode.TreeDataProvider<Timeli
 }
 
 export class TimelineItem extends vscode.TreeItem {
-    private runtimeState: RuntimeState;
+    private runtimeState: OldRuntimeState;
     private debuggerBridge: DebugBridge;
     private timelineIndex: number;
     private selected: boolean;
@@ -103,7 +109,7 @@ export class TimelineItem extends vscode.TreeItem {
 
     constructor(
         sessionlabel: string,
-        runtimeState: RuntimeState,
+        runtimeState: OldRuntimeState,
         debuggerBridge: DebugBridge,
         timelineIndex: number,
         allowedAction: AllowedAction,

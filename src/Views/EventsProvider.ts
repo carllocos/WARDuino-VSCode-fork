@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
 import { ProviderResult, TreeItem, TreeItemCollapsibleState } from 'vscode';
 import { RuntimeViewRefreshInterface } from './RuntimeViewRefreshInterface';
-import { RuntimeState } from '../State/RuntimeState';
+import { OldRuntimeState } from '../State/RuntimeState';
+import { WASM } from 'wasmito';
+import { Context} from '../State/context';
 
 export class EventsProvider implements vscode.TreeDataProvider<EventItem>, RuntimeViewRefreshInterface {
     private events: EventItem[] = [];
@@ -26,11 +28,27 @@ export class EventsProvider implements vscode.TreeDataProvider<EventItem>, Runti
         return element;
     }
 
-    refreshView(runtimeState?: RuntimeState): void {
+    oldRefreshView(runtimeState?: OldRuntimeState): void {
         if (!!runtimeState) {
             this.events = runtimeState.getEvents();
             this._onDidChangeTreeData.fire();
         }
+    }
+
+    refreshView(runtimeState?: Context): void {
+        if (runtimeState !== undefined) {
+            this.events = runtimeState.events.values.map((ev: WASM.Event)=>{
+                return new EventItem(ev.topic, ev.payload);
+            });
+            this._onDidChangeTreeData.fire();
+        }
+    }
+
+    refreshEvents(events: WASM.Event[]): void {
+        this.events = events.map((ev: WASM.Event)=>{
+            return new EventItem(ev.topic, ev.payload);
+        });
+        this._onDidChangeTreeData.fire();
     }
 }
 
