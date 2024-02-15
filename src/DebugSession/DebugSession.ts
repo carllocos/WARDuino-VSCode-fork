@@ -307,7 +307,7 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
             return;
         }
 
-        const sm = this.debuggerBackend.getSourceMap()!;
+        const sm = this.debuggerBackend.getSourceMap();
         const filename = sm.sourceCodeFileName;
         const bps = this.startingBPs.filter(bp=>bp.source.name === filename).map(bp=>bp.linenr);
         this.startingBPs = this.startingBPs.filter(bp=>bp.source.name !== filename);
