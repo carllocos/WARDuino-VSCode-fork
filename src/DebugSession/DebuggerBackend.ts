@@ -2,8 +2,8 @@ import { DeviceManager, DeploymentMode, SourceCodeLocation, SourceMap, StateRequ
 import {EventEmitter} from 'events';
 import { Context } from '../State/context';
 import { DebuggingMode, UserConfig, createVMConfig as createVMConfigArgs} from '../DebuggerConfig';
-import { Breakpoint, Source } from 'vscode-debugadapter';
-import { OutOfPlaceVM } from 'wasmito/dist/types/src/warduino/vm/outofplace_vm';
+import { Source, Breakpoint as VSCodeBreakpoint } from 'vscode-debugadapter';
+import { Breakpoint, OutOfPlaceVM} from 'wasmito';
 
 export class BackendDebuggerEvent {
     public static readonly StateUpdated: string = 'state updated';
@@ -30,11 +30,28 @@ export class BackendDebuggerEvent {
     // public static readonly flashingFailure: string = 'Flashing failed';
 }
 
-export class BreakpointBackend extends Breakpoint {
-    public readonly linenr: number;
-    constructor(linenr: number, columnStart?: number, source?: Source){
-        super(true, linenr, columnStart, source);
-        this.linenr = linenr;
+export class BreakpointBackend extends VSCodeBreakpoint {
+    private readonly _bp: Breakpoint;
+    constructor(bp: Breakpoint, source: Source){
+        super(true, bp.sourceCodeLocation.linenr, bp.sourceCodeLocation.columnStart, source);
+        this._bp = bp;
+    }
+
+    get linenr(): number{
+        return this.bp.sourceCodeLocation.linenr;
+    }
+
+    get sourceCodeLocation(): SourceCodeLocation {
+        return this.sourceCodeLocation;
+    }
+
+    get bp(): Breakpoint {
+        return this._bp;
+    }
+
+
+    equals(otherBP: BreakpointBackend): boolean {
+        return this.bp.equals(otherBP.bp);
     }
 }
 
@@ -43,34 +60,33 @@ export class RemoteDebuggerBackend extends EventEmitter {
     private readonly vm: WARDuinoVM;
     private context: Context;
 
-    // private _breakpoints: BreakpointBackend[];
+    private _breakpoints: BreakpointBackend[];
 
     constructor(vm: WARDuinoVM){
         super();
         this.vm = vm;
         this.context = new Context(new WasmState({}), this.vm.getSourceMap()!);
-        // this._breakpoints = [];
+        this._breakpoints = [];
     }
 
 
     get breakpoints(): BreakpointBackend[] {
-        return this.vm.breakpoints.map((loc)=>{
-            return this.makeBreakpoint(loc);
-        });
+        return this._breakpoints;
     }
 
     async handleEvent(eventIndex: number): Promise<void>{
-        const vm = this.vm as OutOfPlaceVM;
-        if(vm.eventsToHandle.length===0){
+        // manually handling event is only for OutOfPlace debugging
+        if(!(this.vm instanceof OutOfPlaceVM) || this.vm.eventsToHandle.length === 0){
             return;
         }
-        const ev = vm.eventsToHandle[0];
-        const handled = await vm.handleEvent(eventIndex);
+
+        const ev = this.vm.eventsToHandle[0];
+        const handled = await this.vm.handleEvent(eventIndex);
         if(!handled){
             throw Error('Event could not be handled');
         }
         
-        this.emit(BackendDebuggerEvent.EventHandled, ev, vm.eventsToHandle);
+        this.emit(BackendDebuggerEvent.EventHandled, ev, this.vm.eventsToHandle);
     }
 
     close(): Promise<boolean> {
@@ -110,43 +126,59 @@ export class RemoteDebuggerBackend extends EventEmitter {
         return this.vm.proxify(timeout);
     }
 
-    getSourceMap(): SourceMap | undefined {
-        return this.vm.getSourceMap();
-    }
-
-    private makeBreakpoint(sourceCodeLocation: SourceCodeLocation): BreakpointBackend {
-        const sm = this.getSourceMap();
-        if(sm === undefined){
-            throw new Error('No sourcemap found');
-        }
-        const source = new Source(sm.sourceCodeFileName, sm.sourceCodeFilePath);
-        return new BreakpointBackend(sourceCodeLocation.linenr, sourceCodeLocation.columnStart, source);
+    getSourceMap(): SourceMap {
+        return this.vm.sourceMap;
     }
 
 
     private onBreakpointReached(state: WasmState): void {
-        const sourceMap = this.getSourceMap()!;
+        const sourceMap = this.vm.sourceMap;
         this.context =  new Context(state, sourceMap);
         this.emit(BackendDebuggerEvent.BreakpointReached, this.context, this.context.getCurrentSourceCodeLocation()!);
     }
 
 
-    public onNewEvent(ev: WASM.Event, allEvents: WASM.Event[]): void {
+    public onNewEvent(ev: WASM.Event): void {
+        let allEvents: WASM.Event[] = this.context.events.values;
+        if( this.vm instanceof OutOfPlaceVM){
+            allEvents = this.vm.eventsToHandle;
+        }else{
+            allEvents.push(ev);
+        }
         this.emit(BackendDebuggerEvent.NewEventArrived, ev, allEvents);
     }
 
     private async addBreakpoint(sourceCodeLocation: SourceCodeLocation): Promise<boolean>{
         const stateOnBp = this.stateToRequest();
-        if(!await this.vm.addBreakpoint(sourceCodeLocation,stateOnBp, this.onBreakpointReached.bind(this))){
+        const bp = new Breakpoint(sourceCodeLocation, stateOnBp);
+        bp.onBreakpoint(this.onBreakpointReached.bind(this));
+        if(!await this.vm.addBreakpoint(bp)){
             return false;
         }
-        const bp = this.makeBreakpoint(sourceCodeLocation);
-        // this.breakpoints.push(bp);
+
+        const sm = this.vm.sourceMap;
+        const source = new Source(sm.sourceCodeFileName, sm.sourceCodeFilePath);
+        this.breakpoints.push(new BreakpointBackend(bp, source));
         return true;
     }
 
     private async removeBreakpoint(sourceCodeLocation: SourceCodeLocation, timeout?: number): Promise<boolean> {
-        return await this.vm.removeBreakpoint(sourceCodeLocation, timeout);
+        let bpPosition = -1;
+        const bpToRemove = new Breakpoint(sourceCodeLocation);
+
+        const bp = this.breakpoints.find((bp, idx) =>{
+            bpPosition = idx;
+            return bp.bp.equals(bpToRemove);
+        });
+
+        if(bp === undefined){
+            return true;
+        }
+        const success =  await this.vm.removeBreakpoint(bp.bp, timeout);
+        if(success){
+            this.breakpoints.splice(bpPosition, 1);
+        }
+        return success;
     }
 
     private stateToRequest(): StateRequest {
@@ -159,13 +191,11 @@ export class RemoteDebuggerBackend extends EventEmitter {
     async refreshState(): Promise<void> {
         const state = this.stateToRequest();
         const response: WasmState = await this.vm.sendRequest(state);
-        const sourceMap = this.vm.getSourceMap();
-        if(sourceMap === undefined){
-            throw new Error('Sourcemap is undefined');
-        }
+        const sourceMap = this.getSourceMap();
         this.context =  new Context(response, sourceMap);
-        const vm = this.vm as OutOfPlaceVM;
-        this.context.events = vm.eventsToHandle;
+        if(this.vm instanceof OutOfPlaceVM){
+            this.context.events = this.vm.eventsToHandle;
+        }
         this.emit(BackendDebuggerEvent.StateUpdated, this.context);
     }
 
@@ -242,7 +272,11 @@ export async function createTargetVM(deviceManager: DeviceManager, userConfig: U
 export async function createDebuggerBackend(devicesManager: DeviceManager, userConfig: UserConfig): Promise<RemoteDebuggerBackend> {
     const targetVM = await createTargetVM(devicesManager, userConfig);
     if(userConfig.debuggingMode === DebuggingMode.remoteDebugging){
-        return new RemoteDebuggerBackend(targetVM);
+        const dbg= new RemoteDebuggerBackend(targetVM);
+        if(!await targetVM.subscribeOnNewEvent(dbg.onNewEvent.bind(dbg))){
+            throw new Error('Could not subscribe to on New IO Event');
+        }
+        return dbg;
     }
     else if(userConfig.debuggingMode === DebuggingMode.edward){
         let ooVM: OutOfPlaceVM | undefined;
@@ -254,10 +288,10 @@ export async function createDebuggerBackend(devicesManager: DeviceManager, userC
         const dbg = new RemoteDebuggerBackend(ooVM);
 
         // TODO tmp solution as soon one backend will be there per different target VM
-        ooVM.subscribeOnNewEvent((ev: WASM.Event)=>{
-            dbg.onNewEvent(ev, ooVM.eventsToHandle);
-        });
-
+        if(!(await ooVM.subscribeOnNewEvent((ev)=>{
+            dbg.onNewEvent(ev);}))) {
+            throw new Error('Could not subscribe to on New IO Event');
+        }
         return dbg;
     }
     else {
