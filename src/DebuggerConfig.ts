@@ -394,6 +394,7 @@ export class OldDeviceConfig {
 export enum DebuggingMode {
     remoteDebugging = 0,
     edward = 1,
+    outOfThings =2,
 }
 
 const legacyTargetDeviceMapping= new Map<string, DeploymentMode>([
@@ -404,23 +405,66 @@ const legacyTargetDeviceMapping= new Map<string, DeploymentMode>([
 const debuggingModesMapping = new Map<string, DebuggingMode>([
     ['remote-debugging', DebuggingMode.remoteDebugging],
     ['edward', DebuggingMode.edward],
+    ['out-of-things', DebuggingMode.outOfThings],
 ]);
 
 
+export interface UserMCUConnectionConfig {
+    serialPort: string;
+    baudrate: number,
+    boardName: string,
+    fqbn: string
+}
+
 export interface UserConfig {
-    program: string;
     debuggingMode: DebuggingMode;
+    remoteDebuggingConfig?: UserRemoteDebuggingConfig;
+    edwardDebugingConfig?: UserEdwardDebuggingConfig;
+    outOfThingsConfig?: UserOutOfThingsDebuggingConfig;
+}
+
+export interface UserRemoteDebuggingConfig {
+    program: string;
+
     target: DeploymentMode;
 
+    deployOnStart?: boolean; // defaults true
+    
+    // config for dev
+    toolPortExistingVM?: number; // used if deployOnStart is False
 
-    serialPort?: string;
-    baudrate?: number,
-    boardName?: string,
-    fqbn?: string
+    // config for mcu
+    mcuConfig?: UserMCUConnectionConfig;
+}
 
-    existingVM?: boolean;
+export interface UserEdwardDebuggingConfig {
+    programOnTarget: string,
+
+    targetVM: DeploymentMode,
+    
+    deployOnStart?: boolean; // defaults true
+    
+    // config for dev
     toolPortExistingVM?: number;
     serverPortForProxyCall?: number;
+
+    // config for mcu
+    mcuConfig?: UserMCUConnectionConfig;
+}
+
+
+export interface UserOutOfThingsDebuggingConfig {
+    programOnTarget: string,
+
+    targetVM: DeploymentMode,
+    
+    deployOnStart?: boolean; // defaults true
+    
+    // config for dev
+    toolPortExistingVM?: number;
+
+    // config for mcu
+    mcuConfig?: UserMCUConnectionConfig;
 }
 
 export function createUserConfigFromLaunchArgs(lauchArguments: any): Promise<UserConfig> {

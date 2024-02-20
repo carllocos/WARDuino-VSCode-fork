@@ -1,4 +1,4 @@
-import { DeviceManager, DeploymentMode, SourceCodeLocation, SourceMap, StateRequest, WARDuinoVM, WasmState, PlatformBuilderConfig, Platform, BoardFQBN, DeviceConfigArgs, BoardBaudRate, VMConfigArgs, listAvailableBoards, WASM } from 'wasmito';
+import { DeviceManager, DeploymentMode, SourceCodeLocation, SourceMap, StateRequest, WARDuinoVM, WasmState, PlatformBuilderConfig, Platform, BoardFQBN, DeviceConfigArgs, BoardBaudRate, VMConfigArgs, listAvailableBoards, WASM, OutOfPlaceMode } from 'wasmito';
 import {EventEmitter} from 'events';
 import { Context } from '../State/context';
 import { DebuggingMode, UserConfig, createVMConfig as createVMConfigArgs} from '../DebuggerConfig';
@@ -151,7 +151,7 @@ export class RemoteDebuggerBackend extends EventEmitter {
     private async addBreakpoint(sourceCodeLocation: SourceCodeLocation): Promise<boolean>{
         const stateOnBp = this.stateToRequest();
         const bp = new Breakpoint(sourceCodeLocation, stateOnBp);
-        bp.onBreakpoint(this.onBreakpointReached.bind(this));
+        bp.subscribe(this.onBreakpointReached.bind(this));
         if(!await this.vm.addBreakpoint(bp)){
             return false;
         }
@@ -255,14 +255,9 @@ export async function createTargetVM(deviceManager: DeviceManager, userConfig: U
         const vm = await deviceManager.spawnDevelopmentVM(vmConfigArgs, maxWaitTime);
         return vm;
     }
-    else if(userConfig.target === DeploymentMode.MCUVM){
+    else if(userConfig.target === DeploymentMode.MCUVM && userConfig.debuggingMode !== DebuggingMode.outOfThings){
         const platformConfig = await createPlatformConfig(userConfig, vmConfigArgs);
-        const vm = await deviceManager.spawnHardwareVM(platformConfig);
-        const uploaded = await vm.uploadSourceCode(vmConfigArgs.program);
-        if(!uploaded){
-            throw new Error(`failed to upload source code ${vmConfigArgs.program}`);
-        }
-        return vm;
+        return await deviceManager.spawnHardwareVM(platformConfig);
     }
     else {
         throw new Error(`TODO: Unsupported Deployment mode ${userConfig.target}`);
@@ -280,19 +275,21 @@ export async function createDebuggerBackend(devicesManager: DeviceManager, userC
     }
     else if(userConfig.debuggingMode === DebuggingMode.edward){
         let ooVM: OutOfPlaceVM | undefined;
+        const oopMode: OutOfPlaceMode =  OutOfPlaceMode.RedirectIO;
         if(userConfig.existingVM !== undefined && userConfig.existingVM && userConfig.toolPortExistingVM !== undefined){
             ooVM =  await devicesManager.existingVMAsOutOfPlaceVM(userConfig.toolPortExistingVM, targetVM, userConfig.serverPortForProxyCall, 10000);
         }else{
-            ooVM = await devicesManager.spawnOutOfPlaceVM(targetVM);
+            ooVM = await devicesManager.spawnOutOfPlaceVM(targetVM, oopMode);
         }
         const dbg = new RemoteDebuggerBackend(ooVM);
-
-        // TODO tmp solution as soon one backend will be there per different target VM
         if(!(await ooVM.subscribeOnNewEvent((ev)=>{
             dbg.onNewEvent(ev);}))) {
             throw new Error('Could not subscribe to on New IO Event');
         }
         return dbg;
+    }
+    else if(userConfig.debuggingMode === DebuggingMode.outOfThings){
+
     }
     else {
         throw new Error(`unsupported debugging mode ${userConfig.debuggingMode}`);
