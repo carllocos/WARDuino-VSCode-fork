@@ -76,9 +76,9 @@
         "icon": "$(save)"
       },
       {
-        "command": "warduinodebug.startDebuggingOnEmulator",
+        "command": "warduinodebug.startDebuggingSession",
         "category": "WARDuino",
-        "title": "Start debugging locally",
+        "title": "Start debugging a session on a local DevVM",
         "icon": "$(debug-start)"
       },
       {
@@ -86,6 +86,12 @@
         "category": "WARDuino",
         "title": "Swith device view",
         "icon": "$(debug-start)"
+      },
+      {
+        "command": "warduinodebug.viewDevice",
+        "category": "WARDuino",
+        "title": "View the session of the device",
+        "icon": "$(eye)"
       }
     ],
     "views": {
@@ -93,17 +99,32 @@
         {
           "id": "events",
           "name": "events",
-          "group": "navigation"
-        },
-        {
-          "id": "proxies",
-          "name": "proxies",
-          "group": "navigation"
+          "group": "navigation",
+          "when": "warduinodebug.showEvents"
         },
         {
           "id": "stack",
           "name": "stack",
-          "group": "navigation"
+          "group": "navigation",
+          "when": "warduinodebug.showStack"
+        },
+        {
+          "id": "debuggingTimeline",
+          "name": "Debugging Timeline",
+          "group": "navigation",
+          "when": "warduinodebug.showDebuggingTimeLine"
+        },
+        {
+          "id": "ootMonitor",
+          "name": "sessions",
+          "group": "navigation",
+          "when": "warduinodebug.showSessions"
+        },
+        {
+          "id": "proxies",
+          "name": "proxies",
+          "group": "navigation",
+          "when": "warduinodebug.showProxies"
         },
         {
           "id": "breakpointPolicies",
@@ -112,9 +133,10 @@
           "when": "warduinodebug.showBreakpointPolicies"
         },
         {
-          "id": "debuggingTimeline",
-          "name": "Debugging Timeline",
-          "group": "navigation"
+          "id": "devicesView",
+          "name": "Devices Debugged",
+          "group": "navigation",
+          "when": "warduinodebug.showDevicesView"
         }
       ]
     },
@@ -138,8 +160,13 @@
           "group": "inline"
         },
         {
-          "command": "warduinodebug.startDebuggingOnEmulator",
-          "when": "view == debuggingTimeline && viewItem == debug-externally",
+          "command": "warduinodebug.startDebuggingSession",
+          "when": "viewItem == debug-externally",
+          "group": "inline"
+        },
+        {
+          "command": "warduinodebug.viewDevice",
+          "when": "view == devicesView",
           "group": "inline"
         }
       ]
