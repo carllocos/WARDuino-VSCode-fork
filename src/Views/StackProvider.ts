@@ -4,15 +4,17 @@ import { RuntimeViewRefreshInterface } from './RuntimeViewRefreshInterface';
 import { OldRuntimeState} from '../State/RuntimeState';
 import { WASM, WASMValueIndexed } from 'wasmito';
 import { Context} from '../State/context';
+import { RemoteDebuggerBackend } from '../DebugSession/DebuggerBackend';
 
 export class StackProvider implements vscode.TreeDataProvider<StackItem>, RuntimeViewRefreshInterface {
     private _onDidChangeTreeData: vscode.EventEmitter<StackItem | undefined | null | void> = new vscode.EventEmitter<StackItem | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<StackItem | undefined | null | void> = this._onDidChangeTreeData.event;
-    private runtimeState?: Context;
+
+    private dbg?:RemoteDebuggerBackend;
 
     getChildren(element?: StackItem): ProviderResult<StackItem[]> {
         if (element === undefined || element.collapsibleState !== TreeItemCollapsibleState.None) {
-            const stack = this.runtimeState?.stack.values.map((v: WASMValueIndexed) => {
+            const stack = this.dbg?.getCurrentContext().stack.values.map((v: WASMValueIndexed) => {
                 const _type = WASM.typeToString(v.type);
                 if(_type === undefined){
                     throw new Error(`Stack provider received an unknown wasm value type ${_type}`);
@@ -24,6 +26,10 @@ export class StackProvider implements vscode.TreeDataProvider<StackItem>, Runtim
         return undefined;
     }
 
+    setCurrentDBG(dbg: RemoteDebuggerBackend): void{
+        this.dbg = dbg;
+    }
+
     getTreeItem(element: StackItem): TreeItem | Thenable<TreeItem> {
         return element;
     }
@@ -33,8 +39,11 @@ export class StackProvider implements vscode.TreeDataProvider<StackItem>, Runtim
         // this._onDidChangeTreeData.fir
     }
 
-    refreshView(runtimeState: Context): void {
-        this.runtimeState = runtimeState; 
+    refreshView(runtimeState?: Context): void {
+        if(runtimeState !== undefined){
+            throw Error('Should not update runtimeState');
+            // this.runtimeState = runtimeState; 
+        }
         this._onDidChangeTreeData.fire();
     }
 }

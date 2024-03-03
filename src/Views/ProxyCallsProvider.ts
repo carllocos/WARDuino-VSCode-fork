@@ -1,24 +1,38 @@
-import { FunctionInfo } from '../State/FunctionInfo';
 import * as vscode from 'vscode';
 import { ProviderResult, ThemeIcon, TreeItem } from 'vscode';
-import { DebugBridge } from '../DebugBridges/DebugBridge';
 import { RuntimeViewRefreshInterface } from './RuntimeViewRefreshInterface';
 import { OldRuntimeState} from '../State/RuntimeState';
 import { Context} from '../State/context';
+import { RemoteDebuggerBackend } from '../DebugSession/DebuggerBackend';
+import { WASMFunction } from 'wasmito';
 
 export class ProxyCallsProvider implements vscode.TreeDataProvider<ProxyCallItem>, RuntimeViewRefreshInterface {
-    private debugBridge: DebugBridge;
-
     private _onDidChangeTreeData: vscode.EventEmitter<ProxyCallItem | undefined | null | void> = new vscode.EventEmitter<ProxyCallItem | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<ProxyCallItem | undefined | null | void> = this._onDidChangeTreeData.event;
+    private dbg?: RemoteDebuggerBackend;
 
-    constructor(debugBridge: DebugBridge) {
-        this.debugBridge = debugBridge;
+    private items: ProxyCallItem[];
+    constructor(){
+        this.items = [];
+    }
+    
+    setCurrentDBG(dbg: RemoteDebuggerBackend): void {
+        this.dbg = dbg;
+        this.items = dbg.getSourceMap().getEnvironmentFunctions().map(f =>{
+            return new ProxyCallItem(dbg, f, this);
+        });
     }
 
     getChildren(element?: ProxyCallItem): ProviderResult<ProxyCallItem[]> {
         if (element === undefined) {
-            return Array.from(this.debugBridge.getSelectedProxies());
+            return  this.items.map((i)=>{
+                if(this.dbg?.targetVM.functionsProxied().has(i.func)){
+                    i.select();
+                }else{
+                    i.deSelect();
+                }
+                return i;
+            });
         }
         return undefined;
     }
@@ -27,16 +41,12 @@ export class ProxyCallsProvider implements vscode.TreeDataProvider<ProxyCallItem
         return element;
     }
 
-    setDebugBridge(debugBridge: DebugBridge) {
-        this.debugBridge = debugBridge;
-    }
-
     oldRefreshView(runtimeState?: OldRuntimeState) {
         console.log('TODO remove oldRefrehsView');
         // this._onDidChangeTreeData.fire();
     }
 
-    refreshView(runtimeState: Context): void {
+    refreshView(runtimeState?: Context): void {
         console.log('TODO refrehsView Proxies');
         // this.runtimeState = runtimeState; 
         this._onDidChangeTreeData.fire();
@@ -49,17 +59,33 @@ export class ProxyCallsProvider implements vscode.TreeDataProvider<ProxyCallItem
 
 export class ProxyCallItem extends vscode.TreeItem {
     private selected: boolean = true;
+    public readonly func: WASMFunction;
     public index;
+    public readonly dbg: RemoteDebuggerBackend;
+    public readonly provider: ProxyCallsProvider;
 
-    constructor(primitive: FunctionInfo) {
-        super(primitive.name);
+    constructor(dbg: RemoteDebuggerBackend, func: WASMFunction, prov: ProxyCallsProvider) {
+        super(func.name);
+        this.dbg = dbg;
+        this.provider = prov;
+        this.func = func;
         this.iconPath = new ThemeIcon('pass-filled');
         this.command = { title: 'Toggle callback', command: 'warduinodebug.toggleCallback', arguments: [this] };
-        this.index = primitive.index;
+        this.index = func.id;
     }
 
     isSelected(): boolean {
         return this.selected;
+    }
+
+    select(): void{
+        this.selected = true;
+        this.iconPath = new ThemeIcon('pass-filled');
+    }
+
+    deSelect(): void{
+        this.selected = false;
+        this.iconPath = new ThemeIcon('circle-large-outline');
     }
 
     toggle() {

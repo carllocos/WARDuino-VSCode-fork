@@ -5,6 +5,7 @@ import { DebugBridge } from '../DebugBridges/DebugBridge';
 import { RuntimeViewRefreshInterface } from './RuntimeViewRefreshInterface';
 import {getLocationForAddress} from '../State/SourceMap';
 import { Context} from '../State/context';
+import { RemoteDebuggerBackend } from '../DebugSession/DebuggerBackend';
 
 export enum AllowedAction {
     Save = 'save',
@@ -21,12 +22,17 @@ export class DebuggingTimelineProvider implements vscode.TreeDataProvider<Timeli
     private items: TimelineItem[];
     private itemsBeingSaved: Set<number>;
     private view?: vscode.TreeView<TreeItem>;
+    private dbg?: RemoteDebuggerBackend;
 
     constructor(debugBridge: DebugBridge) {
         this.debugBridge = debugBridge;
         this.items = [];
         this.itemsBeingSaved = new Set();
         this.view = undefined;
+    }
+
+    setCurrentDBG(dbg: RemoteDebuggerBackend): void {
+        this.dbg = dbg;
     }
 
     getParent(item: TreeItem) {

@@ -1,48 +1,56 @@
 import * as vscode from 'vscode';
 import { ProviderResult, ThemeIcon, TreeItem } from 'vscode';
-import { DebugBridge } from '../DebugBridges/DebugBridge';
-import { BreakpointPolicy, Breakpoint } from '../State/Breakpoint';
 import { RuntimeViewRefreshInterface } from './RuntimeViewRefreshInterface';
 import { OldRuntimeState} from '../State/RuntimeState';
 import { Context} from '../State/context';
+import { RemoteDebuggerBackend } from '../DebugSession/DebuggerBackend';
+import { BreakpointDefaultPolicy, BreakpointPolicy, RemoveAndProceedBreakpointPolicy, SingleStopBreakpointPolicy } from 'wasmito';
+
+const policies: Array<[string, typeof BreakpointPolicy]> = 
+    [['default', BreakpointDefaultPolicy],
+        ['single stop', SingleStopBreakpointPolicy],
+        ['remove and proceed', RemoveAndProceedBreakpointPolicy]
+    ];
+
+
 
 export class BreakpointPolicyProvider implements vscode.TreeDataProvider<BreakpointPolicyItem>, RuntimeViewRefreshInterface {
-    private debugBridge: DebugBridge;
-
     private _onDidChangeTreeData: vscode.EventEmitter<BreakpointPolicyItem | undefined | null | void> = new vscode.EventEmitter<BreakpointPolicyItem | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<BreakpointPolicyItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
 
     private items: BreakpointPolicyItem[];
+    private dbg?: RemoteDebuggerBackend;
 
+    constructor() {
+        this.items = [];
+        for (const [policyStr, policyConstructor] of policies) {
+            this.items.push(new BreakpointPolicyItem(policyConstructor, policyStr));
+        }
+    }
 
-    constructor(debugBridge: DebugBridge) {
-        this.debugBridge = debugBridge;
-        this.items = Breakpoint.policies().map(p => new BreakpointPolicyItem(p));
+    setCurrentDBG(dbg: RemoteDebuggerBackend): void{
+        this.dbg = dbg;
     }
 
     getChildren(element?: BreakpointPolicyItem): ProviderResult<BreakpointPolicyItem[]> {
         if (element === undefined) {
-            const activePolicy = this.debugBridge.getDeviceConfig().getBreakpointPolicy();
+            const activePolicy = this.dbg?.monitor.breakpointPolicy;
             this.items.forEach(i => {
-                if (i.getPolicy() === activePolicy) {
+                if(i.equals(activePolicy)){
                     i.select();
                 } else {
                     i.deSelect();
                 }
             });
             return this.items;
-
         }
+
         return undefined;
     }
 
     getTreeItem(element: BreakpointPolicyItem): TreeItem | Thenable<TreeItem> {
         return element;
-    }
-
-    setDebugBridge(debugBridge: DebugBridge) {
-        this.debugBridge = debugBridge;
     }
 
     oldRefreshView(runtimeState?: OldRuntimeState): void {
@@ -76,18 +84,20 @@ export class BreakpointPolicyProvider implements vscode.TreeDataProvider<Breakpo
 
 export class BreakpointPolicyItem extends vscode.TreeItem {
     private selected: boolean;
-    private policy: BreakpointPolicy;
+    private policyName: string;
+    private policy: typeof BreakpointPolicy;
 
-    constructor(policy: BreakpointPolicy) {
-        super(policy);
+    constructor(policy: typeof BreakpointPolicy, policyName: string) {
+        super(policyName);
         this.policy = policy;
+        this.policyName = policyName;
         this.selected = false;
         this.iconPath = new ThemeIcon('pass-filled');
         this.command = { title: 'Activate breakpoint policy', command: 'warduinodebug.toggleBreakpointPolicy', arguments: [this] };
     }
 
-    getPolicy(): BreakpointPolicy {
-        return this.policy;
+    equals(other: any): boolean {
+        return other instanceof this.policy;
     }
 
     isSelected(): boolean {

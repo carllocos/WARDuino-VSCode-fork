@@ -4,12 +4,18 @@ import { RuntimeViewRefreshInterface } from './RuntimeViewRefreshInterface';
 import { OldRuntimeState } from '../State/RuntimeState';
 import { WASM } from 'wasmito';
 import { Context} from '../State/context';
+import { RemoteDebuggerBackend } from '../DebugSession/DebuggerBackend';
 
 export class EventsProvider implements vscode.TreeDataProvider<EventItem>, RuntimeViewRefreshInterface {
     private events: EventItem[] = [];
 
     private _onDidChangeTreeData: vscode.EventEmitter<EventItem | undefined | null | void> = new vscode.EventEmitter<EventItem | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<EventItem | undefined | null | void> = this._onDidChangeTreeData.event;
+    private dbg?: RemoteDebuggerBackend;
+
+    setCurrentDBG(dbg: RemoteDebuggerBackend): void {
+        this.dbg = dbg;
+    }
 
     getChildren(element?: EventItem): ProviderResult<EventItem[]> {
         if (element === undefined) {
@@ -40,8 +46,8 @@ export class EventsProvider implements vscode.TreeDataProvider<EventItem>, Runti
             this.events = runtimeState.events.values.map((ev: WASM.Event)=>{
                 return new EventItem(ev.topic, ev.payload);
             });
-            this._onDidChangeTreeData.fire();
         }
+        this._onDidChangeTreeData.fire();
     }
 
     refreshEvents(events: WASM.Event[]): void {
