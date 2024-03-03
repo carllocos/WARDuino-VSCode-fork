@@ -1,6 +1,12 @@
 import * as vscode from 'vscode';
 import { ErrorReporter } from './DebugSession/ErrorReporter';
 import { InlineDebugAdapterFactory } from './DebugSession/InlineDebugAdapterFactory';
+import { startOutOfThingsDebuggingWithDevVMCommand } from './Commands/OutOfThingsDebuggingSessionCommand';
+import { START_DEBUGGING_COMMAND, VIEW_DEVICE_COMMAND } from './Commands/CommandsConstants';
+import { viewDeviceCommand } from './Commands/ViewDeviceCommand';
+import { OutOfThingsSessionItem } from './Views/OutOfThingsSessionProvider';
+import { DeviceItem } from './Views/DevicesProvider';
+import { toggleProxyCall } from './Commands/ProxyCallSelectionCommand';
 
 export function activate(context: vscode.ExtensionContext) {
     let status = installStatusMenuBar(context);
@@ -16,9 +22,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand('warduinodebug.popEvent', () => {
         factory.warduino?.popEvent();
     }));
-    context.subscriptions.push(vscode.commands.registerCommand('warduinodebug.toggleCallback', resource => {
-        factory.warduino?.toggleProxy(resource);
-    }));
+    context.subscriptions.push(vscode.commands.registerCommand('warduinodebug.toggleCallback', toggleProxyCall));
     context.subscriptions.push(vscode.commands.registerCommand('warduinodebug.updateModule', () => {
         factory.warduino?.updateModule();
     }));
@@ -26,7 +30,7 @@ export function activate(context: vscode.ExtensionContext) {
         factory.warduino?.commitChanges();
     }));
     context.subscriptions.push(vscode.commands.registerCommand('warduinodebug.toggleBreakpointPolicy', resource => {
-        factory.warduino?.toggleBreakpointPolicy(resource);
+        // factory.warduino?.toggleBreakpointPolicy(resource);
     }));
     context.subscriptions.push(vscode.commands.registerCommand('warduinodebug.showViewOnRuntimeState', resource => {
         factory.warduino?.showViewOnRuntimeState(resource);
@@ -34,11 +38,17 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand('warduinodebug.saveRuntimeState', resource => {
         factory.warduino?.saveRuntimeState(resource);
     }));
-    context.subscriptions.push(vscode.commands.registerCommand('warduinodebug.startDebuggingOnEmulator', resource => {
-        factory.warduino?.startDebuggingOnEmulator(resource);
+    context.subscriptions.push(vscode.commands.registerCommand(START_DEBUGGING_COMMAND.command, (resource: OutOfThingsSessionItem)=>{
+        if(factory.warduino === undefined){
+            return;
+        }
+        startOutOfThingsDebuggingWithDevVMCommand(factory.warduino.viewsManager, resource);
     }));
-    context.subscriptions.push(vscode.commands.registerCommand('warduinodebug.switchBridge', () => {
-        factory.warduino?.swithDebuggingTarget();
+    context.subscriptions.push(vscode.commands.registerCommand(VIEW_DEVICE_COMMAND.command, (resource: DeviceItem) =>{
+        if(factory.warduino === undefined){
+            return;
+        }
+        viewDeviceCommand(factory.warduino, resource);
     }));
 }
 
