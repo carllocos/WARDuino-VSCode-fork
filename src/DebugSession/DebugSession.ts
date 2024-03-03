@@ -18,33 +18,20 @@ import {
 import {CompileTimeError} from '../CompilerBridges/CompileTimeError';
 import {ErrorReporter} from './ErrorReporter';
 import {DebugBridge} from '../DebugBridges/DebugBridge';
-import {DebugBridgeFactory} from '../DebugBridges/DebugBridgeFactory';
-import {RunTimeTarget} from '../DebugBridges/RunTimeTarget';
-import {CompileBridgeFactory} from '../CompilerBridges/CompileBridgeFactory';
 import {CompileBridge} from '../CompilerBridges/CompileBridge';
-import {SourceMap, getLocationForAddress, Location} from '../State/SourceMap';
-import * as fs from 'fs';
-import {WOODDebugBridge} from '../DebugBridges/WOODDebugBridge';
-import {EventsProvider} from '../Views/EventsProvider';
-import {StackProvider} from '../Views/StackProvider';
-import {ProxyCallItem, ProxyCallsProvider} from '../Views/ProxyCallsProvider';
+import {getLocationForAddress} from '../State/SourceMap';
+import {ProxyCallsProvider} from '../Views/ProxyCallsProvider';
 import {CompileResult} from '../CompilerBridges/CompileBridge';
-import {OldDeviceConfig, createVMConfig, createUserConfigFromLaunchArgs} from '../DebuggerConfig';
+import {createUserConfigFromLaunchArgs} from '../DebuggerConfig';
 import {BreakpointPolicyItem, BreakpointPolicyProvider} from '../Views/BreakpointPolicyProvider';
-import {Breakpoint, BreakpointPolicy} from '../State/Breakpoint';
+import {BreakpointPolicy} from '../State/Breakpoint';
 import {DebuggingTimelineProvider, TimelineItem} from '../Views/DebuggingTimelineProvider';
-import {RuntimeViewsRefresher} from '../Views/ViewsRefresh';
-import {EventsMessages} from '../DebugBridges/AbstractDebugBridge';
 import {OldRuntimeState} from '../State/RuntimeState';
-import {CallstackFrame,  Context} from '../State/context';
-import {DeviceManager, LineInfo, WARDuinoVM, VariableInfo, SourceCodeMapping, WASM} from 'wasmito';
-import { EventEmitter } from 'stream';
-import { BackendDebuggerEvent, RemoteDebuggerBackend, createDebuggerBackend } from './DebuggerBackend';
+import {CallstackFrame} from '../State/context';
+import {DeviceManager, VariableInfo} from 'wasmito';
+import { RemoteDebuggerBackend, createDebuggerBackend } from './DebuggerBackend';
+import { ViewsManager } from '../Views/ViewsManager';
 
-// const debugmodeMap = new Map<string, RunTimeTarget>([
-//     ['emulated', RunTimeTarget.emulator],
-//     ['embedded', RunTimeTarget.embedded]
-// ]);
 
 interface OnStartBreakpoint {
     source: {
@@ -54,39 +41,25 @@ interface OnStartBreakpoint {
     linenr: number
 }
 
-// class WARDuinoEventEmitter extends EventEmitter {
-//     private readonly vm: WARDuinoVM;
-
-//     constructor(vm: WARDuinoVM){
-//         super();
-//         this.vm = vm;
-//     }
-
-// }
-
 // Interface between the debugger and the VS runtime
 export class WARDuinoDebugSession extends LoggingDebugSession {
     private program: string = '';
-    private THREAD_ID: number = 42;
+    readonly THREAD_ID: number = 42;
     private debugBridge?: DebugBridge;
     // private proxyBridge?: DebugBridge;
     private notifier: vscode.StatusBarItem;
     private reporter: ErrorReporter;
-    private proxyCallsProvider?: ProxyCallsProvider;
-    private breakpointPolicyProvider?: BreakpointPolicyProvider;
     private timelineProvider?: DebuggingTimelineProvider;
 
-    private extensionName = 'warduinodebug';
-    private viewsRefresher: RuntimeViewsRefresher = new RuntimeViewsRefresher(this.extensionName);
 
     private variableHandles = new Handles<'locals' | 'globals' | 'arguments'>();
     private compiler?: CompileBridge;
 
-    private devicesManager =  new DeviceManager();
-
+    public readonly devicesManager =  new DeviceManager();
+    public readonly viewsManager: ViewsManager = new ViewsManager(this);
     private startingBPs: OnStartBreakpoint[];
 
-    private debuggerBackend?: RemoteDebuggerBackend;
+    private selectedDebugBackend?: RemoteDebuggerBackend;
 
     public constructor(notifier: vscode.StatusBarItem, reporter: ErrorReporter) {
         super('debug_log.txt');
@@ -94,6 +67,14 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
         this.reporter = reporter;
         this.startingBPs = [];
         this.setDebuggerLinesStartAt1(true);
+    }
+
+    public focusDebuggingOnDevice(dbg: RemoteDebuggerBackend): void{
+        this.selectedDebugBackend = dbg;
+        this.viewsManager.showViews(dbg);
+        if(dbg.isPaused()){
+            this.onPause();
+        }
     }
 
     protected initializeRequest(response: DebugProtocol.InitializeResponse, args: DebugProtocol.InitializeRequestArguments): void {
@@ -173,7 +154,7 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
 
     protected async setBreakPointsRequest(response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments, request?: DebugProtocol.Request): Promise<void> {
 
-        if (this.debuggerBackend === undefined) {
+        if (this.selectedDebugBackend === undefined) {
             // case where the backend did not start yet.
             // Store bps so to set them after connection to backend 
             if(args.lines !== undefined){
@@ -181,9 +162,19 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
             }
         }
         else {
-            await this.debuggerBackend!.setBreakPoints(args.lines ?? []);
+            await this.selectedDebugBackend!.setBreakPoints(args.lines ?? []);
+            const bps = this.selectedDebugBackend!.breakpoints.map( bp =>{
+                return {
+                    verified: true,
+                    line: bp.sourceCodeLocation.linenr,
+                    column: bp.sourceCodeLocation.columnEnd,
+                    endLine: bp.sourceCodeLocation.columnEnd,
+                    source: bp.source,
+                };
+
+            });
             response.body = {
-                breakpoints: this.debuggerBackend!.breakpoints
+                breakpoints: bps
             };
         }
 
@@ -232,7 +223,7 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
                 vars = frame.locals;
                 break;
             case 'globals':
-                vars = this.debuggerBackend!.getCurrentContext()!.globals.values;
+                vars = this.selectedDebugBackend!.getCurrentContext()!.globals.values;
                 break;
             case 'arguments':
                 vars = frame.arguments;
@@ -256,7 +247,7 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
 
     protected stackTraceRequest(response: DebugProtocol.StackTraceResponse,
         args: DebugProtocol.StackTraceArguments): void {
-        const context = this.debuggerBackend?.getCurrentContext();
+        const context = this.selectedDebugBackend?.getCurrentContext();
         if(context === undefined){
             this.sendResponse(response);
             return;
@@ -292,7 +283,7 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
     }
 
     protected async nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): Promise<void> {
-        await this.debuggerBackend?.step();
+        await this.selectedDebugBackend?.step(10000);
         this.sendResponse(response);
         this.sendEvent(new StoppedEvent('step', this.THREAD_ID));
     }
@@ -303,29 +294,42 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
     }
 
     private async setMissedBreakpoints(): Promise<void> {
-        if(this.debuggerBackend === undefined || this.startingBPs.length === 0){
+        if(this.selectedDebugBackend === undefined || this.startingBPs.length === 0){
             return;
         }
 
-        const sm = this.debuggerBackend.getSourceMap();
+        const sm = this.selectedDebugBackend.getSourceMap();
         const filename = sm.sourceCodeFileName;
         const bps = this.startingBPs.filter(bp=>bp.source.name === filename).map(bp=>bp.linenr);
         this.startingBPs = this.startingBPs.filter(bp=>bp.source.name !== filename);
-        await this.debuggerBackend.setBreakPoints(bps);
+        await this.selectedDebugBackend.setBreakPoints(bps);
     }
 
     protected async launchRequest(response: DebugProtocol.LaunchResponse, args: any): Promise<void> {
         try{
-            const launchArgs = await createUserConfigFromLaunchArgs(args);
-            this.viewsRefresher.setupViews();
-            this.debuggerBackend = await createDebuggerBackend(this.devicesManager, launchArgs);
-            this.registerViewCallbacks(this.debuggerBackend!);
-            await this.debuggerBackend.refreshState();
+            const config = await createUserConfigFromLaunchArgs(args);
+            const dc = config.devices.find((d)=>{
+                return !!d.debug;
+            });
+            if(dc === undefined){
+                throw Error('At least one device should be selected for debugging');
+
+            }
+
+            this.selectedDebugBackend = await createDebuggerBackend(this.devicesManager, dc);
+            this.viewsManager.createViews(this.selectedDebugBackend);
+            this.viewsManager.showViews(this.selectedDebugBackend);
+
+            await this.selectedDebugBackend.refreshState(); // TODO make more general
             this.sendResponse(response);
 
             // set bps that could not be set during start
             await this.setMissedBreakpoints();
-            this.onPause();
+            if(this.selectedDebugBackend.isPaused()){
+                this.onPause();
+            } else{
+                this.onRunning();
+            }
         }
         catch(e){
             console.error(e);
@@ -334,12 +338,12 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
     }
 
     protected async continueRequest(response: DebugProtocol.ContinueResponse, args: DebugProtocol.ContinueArguments): Promise<void> {
-        await this.debuggerBackend?.run();
+        await this.selectedDebugBackend?.run();
         this.sendResponse(response);
     }
 
     protected async pauseRequest(response: DebugProtocol.PauseResponse, args: DebugProtocol.PauseArguments, request?: DebugProtocol.Request): Promise<void> {
-        await this.debuggerBackend?.pause();
+        await this.selectedDebugBackend?.pause();
         this.sendResponse(response);
         this.sendEvent(new StoppedEvent('pause', this.THREAD_ID));
     }
@@ -415,11 +419,11 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
         // There is currently no VSCode API support to determine which frame from the stacktrace is currently focused on.
         // This is important to provide the right context
         // For now we always take the latest function frame
-        if(this.debuggerBackend === undefined || this.debuggerBackend.getCurrentContext() === undefined){ 
+        if(this.selectedDebugBackend === undefined || this.selectedDebugBackend.getCurrentContext() === undefined){ 
             return undefined;
         }
 
-        const context = this.debuggerBackend.getCurrentContext();
+        const context = this.selectedDebugBackend.getCurrentContext();
         return context?.callstack.getCurrentFunctionFrame();
     }
 
@@ -486,7 +490,7 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
                 this.notifyProgress('updating module...');
                 await this.debugBridge?.updateModule(res.wasm);
                 this.debugBridge?.updateSourceMapper(res.sourceMap);
-                this.viewsRefresher.oldRefreshViews();
+                // this.viewsRefresher.oldRefreshViews();
                 await this.debugBridge?.refresh();
                 this.sendEvent(new StoppedEvent('pause', this.THREAD_ID));
             }
@@ -540,22 +544,8 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
     }
 
     public popEvent() {
-        this.debuggerBackend?.handleEvent(0);
+        this.selectedDebugBackend?.handleEvent(0);
         // this.debugBridge?.popEvent();
-    }
-
-    public async toggleProxy(resource: ProxyCallItem) {
-        resource.toggle();
-        await this.debugBridge?.updateSelectedProxies(resource);
-        await this.debugBridge?.updateSelectedMock();
-        this.proxyCallsProvider?.refresh();
-    }
-
-    public toggleBreakpointPolicy(item: BreakpointPolicyItem) {
-        this.breakpointPolicyProvider!.toggleItem(item);
-        const activePolicy = this.breakpointPolicyProvider!.getSelected();
-        this.debugBridge?.getDeviceConfig().setBreakpointPolicy(activePolicy?.getPolicy() ?? BreakpointPolicy.default);
-        this.breakpointPolicyProvider!.refresh();
     }
 
     public showViewOnRuntimeState(item: TimelineItem) {
@@ -676,106 +666,88 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
         this.sendEvent(new StoppedEvent('step', this.THREAD_ID));
     }
 
-    private registerViewCallbacks(debuggerBackend: RemoteDebuggerBackend): void {
-        debuggerBackend.on(BackendDebuggerEvent.StateUpdated, (context: Context)=>{
-            this.viewsRefresher.refreshViews(context);
-            this.viewsRefresher.eventsProvider.refreshEvents(context.events.values);
-        });
-        debuggerBackend.on(BackendDebuggerEvent.BreakpointReached, (context: Context, location: SourceCodeMapping)=>{
-            this.sendEvent(new StoppedEvent('breakpoint', this.THREAD_ID));
-            this.viewsRefresher.refreshViews(context);
-            this.viewsRefresher.eventsProvider.refreshEvents(context.events.values);
-        });
-
-        debuggerBackend.on(BackendDebuggerEvent.NewEventArrived, (ev: WASM.Event, allEvents: WASM.Event[]) => {
-            this.viewsRefresher.eventsProvider.refreshEvents(allEvents);
-        });
-        debuggerBackend.on(BackendDebuggerEvent.EventHandled, (ev: WASM.Event, allEvents: WASM.Event[]) => {
-            this.viewsRefresher.eventsProvider.refreshEvents(allEvents);
-        });
-    }
 
     private registerGUICallbacks(debugBridge: DebugBridge) {
-        debugBridge.on(EventsMessages.stateUpdated, (newState: OldRuntimeState) => {
-            this.onNewState(newState);
-        });
-        debugBridge.on(EventsMessages.moduleUpdated, (db: DebugBridge) => {
-            this.notifyInfoMessage(db, EventsMessages.moduleUpdated);
-        });
-        debugBridge.on(EventsMessages.stepCompleted, () => {
-            this.onStepCompleted();
-        });
-        debugBridge.on(EventsMessages.running, () => {
-            this.onRunning();
-        });
-        debugBridge.on(EventsMessages.paused, () => {
-            this.onPause();
-        });
-        debugBridge.on(EventsMessages.exceptionOccurred, (db: DebugBridge, state: OldRuntimeState) => {
-            this.onException(db, state);
-        });
-        debugBridge.on(EventsMessages.enforcingBreakpointPolicy, (db: DebugBridge, policy: BreakpointPolicy) => {
-            this.onEnforcingBPPolicy(db, policy);
-        });
-        debugBridge.on(EventsMessages.atBreakpoint, (db: DebugBridge, line: any) => {
-            if (db.getDeviceConfig().isBreakpointPolicyEnabled()) {
-                if (db.getDeviceConfig().getBreakpointPolicy() !== BreakpointPolicy.default) {
-                    let msg = 'reached breakpoint';
-                    if (line !== undefined) {
-                        msg += ` at line ${line}`;
-                    }
-                    this.notifyInfoMessage(db, msg);
-                }
-            }
-        });
-        debugBridge.on(EventsMessages.emulatorStarted, (db: DebugBridge) => {
-            const name = db.getDeviceConfig().name;
-            const msg = `Emulator for ${name} spawned`;
-            this.notifyProgress(msg);
-        });
-        debugBridge.on(EventsMessages.emulatorClosed, (db: DebugBridge, reason: number | null) => {
-            const name = db.getDeviceConfig().name;
-            let msg = `Emulator for ${name} closed`;
-            if (reason !== null) {
-                msg += ` reason: ${reason}`;
-            }
-            this.notifyProgress(msg);
-        });
-        debugBridge.on(EventsMessages.connected, (db: DebugBridge) => {
-            this.onConnected(db);
-        });
-        debugBridge.on(EventsMessages.disconnected, (db: DebugBridge) => {
-            const name = db.getDeviceConfig().name;
-            const msg = `Disconected from ${name}`;
-            this.notifyProgress(msg);
-            this.notifyInfoMessage(db, 'Disconnected');
-        });
-        debugBridge.on(EventsMessages.connectionError, (db: DebugBridge, err: number | null) => {
-            const name = db.getDeviceConfig().name;
-            let msg = `Connection to ${name} failed`;
-            if (err !== null) {
-                msg += ` reason: ${err}`;
-            }
-            this.notifyProgress(msg);
-        });
-        debugBridge.on(EventsMessages.progress, (db: DebugBridge, msg: string) => {
-            this.notifyInfoMessage(db, msg);
-        });
-        debugBridge.on(EventsMessages.errorInProgress, (db: DebugBridge, msg: string) => {
-            this.notifyErrorMessage(db, msg);
-        });
+        // debugBridge.on(EventsMessages.stateUpdated, (newState: OldRuntimeState) => {
+        //     this.onNewState(newState);
+        // });
+        // debugBridge.on(EventsMessages.moduleUpdated, (db: DebugBridge) => {
+        //     this.notifyInfoMessage(db, EventsMessages.moduleUpdated);
+        // });
+        // debugBridge.on(EventsMessages.stepCompleted, () => {
+        //     this.onStepCompleted();
+        // });
+        // debugBridge.on(EventsMessages.running, () => {
+        //     this.onRunning();
+        // });
+        // debugBridge.on(EventsMessages.paused, () => {
+        //     this.onPause();
+        // });
+        // debugBridge.on(EventsMessages.exceptionOccurred, (db: DebugBridge, state: OldRuntimeState) => {
+        //     this.onException(db, state);
+        // });
+        // debugBridge.on(EventsMessages.enforcingBreakpointPolicy, (db: DebugBridge, policy: BreakpointPolicy) => {
+        //     this.onEnforcingBPPolicy(db, policy);
+        // });
+        // debugBridge.on(EventsMessages.atBreakpoint, (db: DebugBridge, line: any) => {
+        //     if (db.getDeviceConfig().isBreakpointPolicyEnabled()) {
+        //         if (db.getDeviceConfig().getBreakpointPolicy() !== BreakpointPolicy.default) {
+        //             let msg = 'reached breakpoint';
+        //             if (line !== undefined) {
+        //                 msg += ` at line ${line}`;
+        //             }
+        //             this.notifyInfoMessage(db, msg);
+        //         }
+        //     }
+        // });
+        // debugBridge.on(EventsMessages.emulatorStarted, (db: DebugBridge) => {
+        //     const name = db.getDeviceConfig().name;
+        //     const msg = `Emulator for ${name} spawned`;
+        //     this.notifyProgress(msg);
+        // });
+        // debugBridge.on(EventsMessages.emulatorClosed, (db: DebugBridge, reason: number | null) => {
+        //     const name = db.getDeviceConfig().name;
+        //     let msg = `Emulator for ${name} closed`;
+        //     if (reason !== null) {
+        //         msg += ` reason: ${reason}`;
+        //     }
+        //     this.notifyProgress(msg);
+        // });
+        // debugBridge.on(EventsMessages.connected, (db: DebugBridge) => {
+        //     this.onConnected(db);
+        // });
+        // debugBridge.on(EventsMessages.disconnected, (db: DebugBridge) => {
+        //     const name = db.getDeviceConfig().name;
+        //     const msg = `Disconected from ${name}`;
+        //     this.notifyProgress(msg);
+        //     this.notifyInfoMessage(db, 'Disconnected');
+        // });
+        // debugBridge.on(EventsMessages.connectionError, (db: DebugBridge, err: number | null) => {
+        //     const name = db.getDeviceConfig().name;
+        //     let msg = `Connection to ${name} failed`;
+        //     if (err !== null) {
+        //         msg += ` reason: ${err}`;
+        //     }
+        //     this.notifyProgress(msg);
+        // });
+        // debugBridge.on(EventsMessages.progress, (db: DebugBridge, msg: string) => {
+        //     this.notifyInfoMessage(db, msg);
+        // });
+        // debugBridge.on(EventsMessages.errorInProgress, (db: DebugBridge, msg: string) => {
+        //     this.notifyErrorMessage(db, msg);
+        // });
     }
 
-    private onConnected(db: DebugBridge) {
-        const name = db.getDeviceConfig().name;
-        const msg = `Connected to ${name}`;
-        this.notifyProgress(msg);
-        this.notifyInfoMessage(db, 'Connected');
-    }
+    // private onConnected(db: DebugBridge) {
+    //     const name = db.getDeviceConfig().name;
+    //     const msg = `Connected to ${name}`;
+    //     this.notifyProgress(msg);
+    //     this.notifyInfoMessage(db, 'Connected');
+    // }
 
-    private onNewState(runtimeState: OldRuntimeState) {
-        this.viewsRefresher.oldRefreshViews(runtimeState);
-    }
+    // private onNewState(runtimeState: OldRuntimeState) {
+    //     this.viewsRefresher.oldRefreshViews(runtimeState);
+    // }
 
     private onStepCompleted() {
         this.sendEvent(new StoppedEvent('step', this.THREAD_ID));
