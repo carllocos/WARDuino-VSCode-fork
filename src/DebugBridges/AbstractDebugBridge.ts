@@ -84,8 +84,9 @@ export abstract class AbstractDebugBridge extends EventEmitter implements DebugB
         super();
         this.sourceMap = sourceMap;
         const callbacks = sourceMap?.importInfos ?? [];
-        this.selectedProxies = new Set<ProxyCallItem>(callbacks.map((primitive: FunctionInfo) => (new ProxyCallItem(primitive))))
-            ?? new Set<ProxyCallItem>();
+        this.selectedProxies = new Set<ProxyCallItem>();
+        // this.selectedProxies = new Set<ProxyCallItem>(callbacks.map((primitive: FunctionInfo) => (new ProxyCallItem(primitive))))
+        //     ?? new Set<ProxyCallItem>();
         this.deviceConfig = deviceConfig;
     }
 
