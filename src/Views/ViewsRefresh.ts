@@ -1,96 +1,39 @@
 import * as vscode from 'vscode';
 
-import { OldDeviceConfig } from '../DebuggerConfig';
-import { OldRuntimeState} from '../State/RuntimeState';
 import { RuntimeViewRefreshInterface } from './RuntimeViewRefreshInterface';
-import { EventsProvider } from './EventsProvider';
-import { StackProvider } from './StackProvider';
 import { Context} from '../State/context';
+import { RemoteDebuggerBackend } from '../DebugSession/DebuggerBackend';
+import { WARDuinoDebugSession } from '../DebugSession/DebugSession';
 
-interface ViewsConfig {
-    showBreakpointPolicies: boolean;
-}
+export abstract class RuntimeViewsRefresher {
 
-export class RuntimeViewsRefresher {
+    protected viewsProviders: RuntimeViewRefreshInterface[]; // todo delete?
+    protected readonly session: WARDuinoDebugSession;
+    protected readonly dbg: RemoteDebuggerBackend;
 
-    private viewsProviders: RuntimeViewRefreshInterface[];
-    private extensionName: string;
-
-    private readonly _stackProvider: StackProvider;
-    private readonly _eventsProvider: EventsProvider;
-
-    constructor(extensionName: string) {
+    constructor(session: WARDuinoDebugSession, db: RemoteDebuggerBackend) {
+        this.session = session;
+        this.dbg = db;
         this.viewsProviders = [];
-        this.extensionName = extensionName;
-
-        this._stackProvider = new StackProvider();
-        this._eventsProvider = new EventsProvider();
-    }
-
-    get eventsProvider(): EventsProvider {
-        return this._eventsProvider;
+        this.registerViewCallbacks();
     }
 
     addViewProvider(viewProvider: RuntimeViewRefreshInterface) {
         this.viewsProviders.push(viewProvider);
     }
 
-    oldRefreshViews(runtimeState?: OldRuntimeState) {
+    refreshViews(context?: Context) {
         this.viewsProviders.forEach(v => {
-            v.oldRefreshView(runtimeState);
+            v.refreshView(context);
         });
     }
 
-    refreshViews(runtimeState?: Context) {
-        this.viewsProviders.forEach(v => {
-            v.refreshView(runtimeState);
-        });
-    }
+    abstract hideViews(): void;
 
-    showViewsFromConfig(deviceConfig: OldDeviceConfig) {
-        const showBreakPointPolicies = deviceConfig.isBreakpointPolicyEnabled();
-        vscode.commands.executeCommand('setContext', `${this.extensionName}.showBreakpointPolicies`, showBreakPointPolicies);
-    }
+    abstract close(): void;
 
-    setupViews(): void{
+    abstract showViews(): void ;
 
-        this.addViewProvider(this._stackProvider);
-        vscode.window.registerTreeDataProvider('stack', this._stackProvider);
-
-        this.addViewProvider(this._eventsProvider);
-        vscode.window.registerTreeDataProvider('events', this.eventsProvider);
-
-        // const deviceConfig: OldDeviceConfig;
-
-        // this.showViewsFromConfig(deviceConfig);
-
-        // vscode.window.registerTreeDataProvider('events', eventsProvider);
-
-        // this.proxyCallsProvider = new ProxyCallsProvider(next);
-        // this.viewsRefresher.addViewProvider(this.proxyCallsProvider);
-        // vscode.window.registerTreeDataProvider('proxies', this.proxyCallsProvider);
-        // this.proxyCallsProvider?.setDebugBridge(next);
-
-        // if (next.getDeviceConfig().isBreakpointPolicyEnabled()) {
-        //     if (!!!this.breakpointPolicyProvider) {
-        //         this.breakpointPolicyProvider = new BreakpointPolicyProvider(next);
-        //         this.viewsRefresher.addViewProvider(this.breakpointPolicyProvider);
-        //         vscode.window.registerTreeDataProvider('breakpointPolicies', this.breakpointPolicyProvider);
-        //     } else {
-        //         this.breakpointPolicyProvider.setDebugBridge(next);
-        //     }
-        //     this.breakpointPolicyProvider.refresh();
-        // }
-
-        // if (this.timelineProvider) {
-        //     this.timelineProvider = new DebuggingTimelineProvider(next);
-        //     this.viewsRefresher.addViewProvider(this.timelineProvider);
-        //     const v = vscode.window.createTreeView('debuggingTimeline', {treeDataProvider: this.timelineProvider});
-        //     this.timelineProvider.setView(v);
-        // } else {
-        //     this.timelineProvider.setDebugBridge(next);
-        // }
-
-    }
+    abstract registerViewCallbacks(): void ;
 
 }
