@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 // TODO validate configuration
 import { readFileSync } from 'fs';
 import { Breakpoint, BreakpointPolicy } from './State/Breakpoint';
-import { DeviceConfig, DeploymentMode, VMConfigArgs, VMConfiguration, DeviceConfigArgs, listAvailableBoards, BoardBaudRate, listAllFQBN } from 'wasmito';
+import { DeploymentMode, listAvailableBoards, BoardBaudRate, listAllFQBN, deploymentModeFromString } from 'wasmito';
 
 interface MockConfig {
     port: number;
@@ -410,17 +410,90 @@ const debuggingModesMapping = new Map<string, DebuggingMode>([
 
 
 export interface UserMCUConnectionConfig {
-    serialPort: string;
-    baudrate: number,
-    boardName: string,
+
+    // TODO make serialPort mandatory and provide port via GUI
+    serialPort?: string; // default searches the first found port
+    baudrate?: number,
+    boardName?: string, // defaults Arduino's registered boardname
     fqbn: string
 }
 
-export interface UserConfig {
-    debuggingMode: DebuggingMode;
-    remoteDebuggingConfig?: UserRemoteDebuggingConfig;
-    edwardDebugingConfig?: UserEdwardDebuggingConfig;
-    outOfThingsConfig?: UserOutOfThingsDebuggingConfig;
+
+export async function assertAndCreateUserMCUConnectionConfig(config: any): Promise<UserMCUConnectionConfig> {
+    if(typeof config !== 'object'){
+        throw new InvalidDebuggerConfiguration('UserMCUConnnectionConfig expected to be of type object');
+    }
+
+
+    const boards = await listAvailableBoards();
+    let serialPort = config.serialPort;
+    if(serialPort === undefined){
+        console.info('No serial port set for Board');
+        console.info('searching for a serial port to use');
+        if (boards.length === 0) {
+            const errMsg = 'no serialPort provided nor a connected board detected';
+            console.error(errMsg);
+            throw new InvalidDebuggerConfiguration(errMsg);
+        }
+        serialPort = boards[0];
+    }
+    else if(typeof serialPort !== 'string'){
+        throw new InvalidDebuggerConfiguration('serialPort is expected to be a string');
+    }
+    else if(boards.find((b)=>{
+        return b === serialPort;
+    }) === undefined){
+        throw new InvalidDebuggerConfiguration(`given serialPort ${serialPort} is not connected to computer. Detected ports are: ${boards.join(', ')}`);
+    }
+
+
+    const fqbn = config.fqbn;
+    if(fqbn === undefined){
+        throw new InvalidDebuggerConfiguration('fqbn is mandatory when targetting a MCU');
+    }
+    else if(typeof fqbn !== 'string'){
+        throw new InvalidDebuggerConfiguration('fqbn is expected to be a string');
+    }
+
+    const fqbns = await listAllFQBN();
+    const targetBoard = fqbns.find((board) => {
+        return board.fqbn === fqbn;
+    });
+    if (targetBoard === undefined) {
+        const errMsg = `No board found with fqbn ${fqbn}`;
+        console.error(errMsg);
+        throw new InvalidDebuggerConfiguration(errMsg);
+    }
+        
+    let baudrate = config.baudrate;
+    if(baudrate === undefined){
+        console.info('No baudrate set');
+        console.info(`failling back to default ${BoardBaudRate.BD_115200}`);
+        baudrate = BoardBaudRate.BD_115200;
+    }
+    else if(typeof baudrate !== 'number'){
+        throw new InvalidDebuggerConfiguration('baudrate is expected to be a number');
+    }
+
+    let boardName = config.boardName;
+    if(boardName === undefined){
+        boardName = targetBoard.boardName;
+    }
+    else if(typeof boardName !== 'string'){
+        throw new InvalidDebuggerConfiguration('boardName is expected to be a string');
+    }
+    else if(boardName !== ''){
+        throw new InvalidDebuggerConfiguration('boardName is expected to be a non empty string');
+    }
+
+
+    return {
+        serialPort,
+        fqbn,
+        boardName,
+        baudrate
+    };
+
 }
 
 export interface UserRemoteDebuggingConfig {
@@ -437,10 +510,136 @@ export interface UserRemoteDebuggingConfig {
     mcuConfig?: UserMCUConnectionConfig;
 }
 
+export async function assertAndCreateUserRemoteDebuggingConfig(config: any): Promise<UserRemoteDebuggingConfig> {
+
+    if(typeof config !== 'object'){
+        throw new InvalidDebuggerConfiguration('UserRemoteDebuggingConfig expected to be an object');
+    }
+
+    const program = config.program;
+    if(program === undefined || typeof program !== 'string') {
+        throw new InvalidDebuggerConfiguration(`program is mandatory and expected to be a string. Given ${typeof(program)}`);
+    }
+
+    let target = config.target;
+    if(target === undefined || typeof target !== 'string'){
+        throw new InvalidDebuggerConfiguration(`target is mandatory and expected to be a string either. Given ${target}`);
+    }
+    else{
+        target = deploymentModeFromString(target);
+        if(target === undefined){
+            throw new InvalidDebuggerConfiguration(`target is expected to be one of the values: ${Object.values(DebuggingMode).join(', ')}`);
+        }
+    }
+
+    let deployOnStart = config.deployOnStart;
+    if(deployOnStart !== undefined && typeof deployOnStart !== 'boolean'){
+        throw new InvalidDebuggerConfiguration('deployOnStart is expected to be a boolean');
+    }
+    else if(deployOnStart === undefined){
+        deployOnStart = true;
+    }
+
+
+    const toolPortExistingVM = config.toolPortExistingVM;
+    if(toolPortExistingVM !== undefined && typeof toolPortExistingVM !== 'number'){
+        throw new InvalidDebuggerConfiguration(`toolPortExistingVM is expected to be a number. Given ${toolPortExistingVM}`);
+    }
+    let mcuConfig = config.mcuConfig;
+    if(mcuConfig !== undefined){
+        mcuConfig = await assertAndCreateUserMCUConnectionConfig(mcuConfig);
+    }
+    if(target === DeploymentMode.MCUVM && mcuConfig === undefined){
+        throw new InvalidDebuggerConfiguration('mcuConfig is mandatory when targetting a mcu');
+    }
+
+    return {
+        program,
+        target,
+        deployOnStart,
+        toolPortExistingVM,
+        mcuConfig
+    };
+}
+
 export interface UserEdwardDebuggingConfig {
     programOnTarget: string,
 
-    targetVM: DeploymentMode,
+    target: DeploymentMode,
+    
+    deployOnStart?: boolean; // defaults true
+    
+    // config for dev
+    toolPortExistingVM?: number;
+    serverPortForProxyCall?: number;
+
+    // config for mcu
+    mcuConfig?: UserMCUConnectionConfig;
+}
+
+export async function assertAndCreateEdwardDebuggingConfig(config: any): Promise<UserEdwardDebuggingConfig> {
+
+    if(typeof config !== 'object'){
+        throw new InvalidDebuggerConfiguration('UserEdwardDebuggingConfig expected to be an object');
+    }
+
+    const programOnTarget = config.programOnTarget;
+    if(programOnTarget === undefined || typeof programOnTarget !== 'string') {
+        throw new InvalidDebuggerConfiguration(`programOnTarget is mandatory and expected to be string Given ${typeof(programOnTarget)}`);
+    }
+
+    let target = config.target;
+    if(target === undefined || typeof target !== 'string'){
+        throw new InvalidDebuggerConfiguration(`Target is mandatory and expected to be a string either. Given ${target}`);
+    }
+    else {
+        target = deploymentModeFromString(target);
+        if(target === undefined){
+            throw new InvalidDebuggerConfiguration(`target is expected to be one of the values: ${Object.values(DebuggingMode).join(', ')}`);
+        }
+    }
+
+    let deployOnStart = config.deployOnStart;
+    if(deployOnStart !== undefined && typeof deployOnStart !== 'boolean'){
+        throw new InvalidDebuggerConfiguration('deployOnStart is expected to be a boolean');
+    }
+    else if(deployOnStart === undefined){
+        deployOnStart = true;
+    }
+
+
+    const toolPortExistingVM = config.toolPortExistingVM;
+    if(toolPortExistingVM !== undefined && typeof toolPortExistingVM !== 'number'){
+        throw new InvalidDebuggerConfiguration(`toolPortExistingVM is expected to be a number. Given ${toolPortExistingVM}`);
+    }
+
+    const serverPortForProxyCall = config.serverPortForProxyCall;
+    if(serverPortForProxyCall !== undefined && typeof serverPortForProxyCall !== 'number'){
+        throw new InvalidDebuggerConfiguration(`serverPortProxyCall is expected to be a number. Given ${serverPortForProxyCall}`);
+    }
+
+    let mcuConfig = config.mcuConfig;
+    if(mcuConfig !== undefined){
+        mcuConfig = await assertAndCreateUserMCUConnectionConfig(mcuConfig);
+    }
+    if(target === DeploymentMode.MCUVM && mcuConfig === undefined){
+        throw new InvalidDebuggerConfiguration('mcuConfig is mandatory when targetting a mcu');
+    }
+
+    return {
+        programOnTarget,
+        target,
+        deployOnStart,
+        toolPortExistingVM,
+        mcuConfig
+    };
+}
+
+
+export interface UserOutOfThingsDebuggingConfig {
+    programOnTarget: string,
+
+    target: DeploymentMode,
     
     deployOnStart?: boolean; // defaults true
     
@@ -453,170 +652,151 @@ export interface UserEdwardDebuggingConfig {
 }
 
 
-export interface UserOutOfThingsDebuggingConfig {
-    programOnTarget: string,
+export async function assertAndCreateOutOfThingsDebuggingConfig(config: any): Promise<UserOutOfThingsDebuggingConfig> {
 
-    targetVM: DeploymentMode,
-    
-    deployOnStart?: boolean; // defaults true
-    
-    // config for dev
-    toolPortExistingVM?: number;
-
-    // config for mcu
-    mcuConfig?: UserMCUConnectionConfig;
-}
-
-export function createUserConfigFromLaunchArgs(lauchArguments: any): Promise<UserConfig> {
-    const args = validateVSCodeLaunchArgs(lauchArguments);
-    return fillMissingValues(args);
-} 
-
-
-function validateVSCodeLaunchArgs(lauchArguments: any):  UserConfig {
-    if(typeof lauchArguments !== 'object'){
-        throw new InvalidDebuggerConfiguration(`launchArguments are expected to be an object. Given ${typeof(lauchArguments)}`);
+    if(typeof config !== 'object'){
+        throw new InvalidDebuggerConfiguration('UserOutOfThingsDebuggingConfig expected to be an object');
     }
 
-    const program = lauchArguments.program;
-    if(program === undefined || typeof program !== 'string') {
-        throw new InvalidDebuggerConfiguration(`program is mandatory and expected to be string Given ${typeof(program)}`);
+    const programOnTarget = config.programOnTarget;
+    if(programOnTarget === undefined || typeof programOnTarget !== 'string') {
+        throw new InvalidDebuggerConfiguration(`programOnTarget is mandatory and expected to be string Given ${typeof(programOnTarget)}`);
     }
 
-    const selectedTarget = lauchArguments.target;
-    if(selectedTarget === undefined || typeof selectedTarget !== 'string'){
-        throw new InvalidDebuggerConfiguration(`Target is mandatory and expected to be a string either 'development' or 'mcu'. Given ${selectedTarget}`);
+    let target = config.target;
+    if(target === undefined || typeof target !== 'string'){
+        throw new InvalidDebuggerConfiguration(`Target is mandatory and expected to be a string either. Given ${target}`);
     }
-    const target =  legacyTargetDeviceMapping.get(selectedTarget);
-    if(target === undefined){
-        throw new InvalidDebuggerConfiguration(`unsupported target. Given ${selectedTarget}`);
-    }
-
-    const selectedDebugMode = lauchArguments.debuggingMode;
-    if(selectedDebugMode === undefined || typeof selectedDebugMode !== 'string'){
-        throw new InvalidDebuggerConfiguration(`debuggingMode is mandatory and expected to be a string either 'remote-debugging' or 'edward'. Given ${selectedDebugMode}`);
-    }
-    const debugMode =  debuggingModesMapping.get(selectedDebugMode);
-    if(debugMode === undefined){
-        throw new InvalidDebuggerConfiguration(`unsupported debugging mode. Given ${selectedDebugMode}`);
-    }
-    
-    if(lauchArguments.existingVM !== undefined && typeof lauchArguments.existingVM !== 'boolean'){
-        throw new InvalidDebuggerConfiguration(`existingVM option should be a boolean current type ${typeof lauchArguments.existingVM}`);
-    }
-    if(lauchArguments.toolPortExistingVM !== undefined && typeof lauchArguments.toolPortExistingVM !== 'number'){
-        throw new InvalidDebuggerConfiguration(`toolPortExistingVM option should be a number current type ${typeof lauchArguments.toolPortExistingVM}`);
+    else {
+        target = deploymentModeFromString(target);
+        if(target === undefined){
+            throw new InvalidDebuggerConfiguration(`target is expected to be one of the values: ${Object.values(DebuggingMode).join(', ')}`);
+        }
     }
 
-    if(lauchArguments.existingVM !== undefined && lauchArguments.toolPortExistingVM === undefined){
-        throw new InvalidDebuggerConfiguration('toolPortExistingVM option should be set when existingVM is also enabled');
+    let deployOnStart = config.deployOnStart;
+    if(deployOnStart !== undefined && typeof deployOnStart !== 'boolean'){
+        throw new InvalidDebuggerConfiguration('deployOnStart is expected to be a boolean');
     }
-    else if(lauchArguments.existingVM === undefined && lauchArguments.toolPortExistingVM !== undefined){
-        throw new InvalidDebuggerConfiguration('existingVM option should be set when toolPortExistingVM is also enabled');
-    }
-
-    if(lauchArguments.serverPortForProxyCall !== undefined && typeof lauchArguments.serverPortForProxyCall !== 'number'){
-        throw new InvalidDebuggerConfiguration('serverPortForProxyCall option should be a number');
+    else if(deployOnStart === undefined){
+        deployOnStart = true;
     }
 
-    const args: UserConfig = {
-        program,
+
+    const toolPortExistingVM = config.toolPortExistingVM;
+    if(toolPortExistingVM !== undefined && typeof toolPortExistingVM !== 'number'){
+        throw new InvalidDebuggerConfiguration(`toolPortExistingVM is expected to be a number. Given ${toolPortExistingVM}`);
+    }
+
+    const serverPortForProxyCall = config.serverPortForProxyCall;
+    if(serverPortForProxyCall !== undefined && typeof serverPortForProxyCall !== 'number'){
+        throw new InvalidDebuggerConfiguration(`serverPortProxyCall is expected to be a number. Given ${serverPortForProxyCall}`);
+    }
+
+    let mcuConfig = config.mcuConfig;
+    if(mcuConfig !== undefined){
+        mcuConfig = await assertAndCreateUserMCUConnectionConfig(mcuConfig);
+    }
+    if(target === DeploymentMode.MCUVM && mcuConfig === undefined){
+        throw new InvalidDebuggerConfiguration('mcuConfig is mandatory when targetting a mcu');
+    }
+
+    return {
+        programOnTarget,
         target,
-        debuggingMode: debugMode,
-        existingVM: lauchArguments.existingVM,
-        toolPortExistingVM: lauchArguments.toolPortExistingVM,
-        serverPortForProxyCall: lauchArguments.serverPortForProxyCall
+        deployOnStart,
+        toolPortExistingVM,
+        mcuConfig
+    };
+}
+
+export interface UserDeviceConfig {
+    debug?: boolean,
+    debuggingMode: DebuggingMode;
+    remoteDebuggingConfig?: UserRemoteDebuggingConfig;
+    edwardDebuggingConfig?: UserEdwardDebuggingConfig;
+    outOfThingsConfig?: UserOutOfThingsDebuggingConfig;
+}
+
+
+export interface UserConfig {
+    devices: UserDeviceConfig[];
+}
+
+
+export async function  assertAndCreateUserDeviceConfig(config: any): Promise<UserDeviceConfig> {
+    if(typeof config !== 'object'){
+        throw new InvalidDebuggerConfiguration('UserConfig expected to be an object');
+
+    }
+
+    let debug = config.debug;
+    if(debug !== undefined && typeof debug !== 'boolean'){
+        throw new InvalidDebuggerConfiguration(`debug is expected to be a boolean. Given ${debug}`);
+    }else if(debug === undefined){
+        debug = false;
+    }
+
+    if(config.debuggingMode === undefined || typeof config.debuggingMode !== 'string'){
+        throw new InvalidDebuggerConfiguration(`debuggingMode is mandatory and expected to be a string either 'remote-debugging' or 'edward'. Given ${config.debuggingMode}`);
+    }
+
+    const debuggingMode =  debuggingModesMapping.get(config.debuggingMode);
+    if(debuggingMode === undefined){
+        throw new InvalidDebuggerConfiguration(`unsupported debugging mode. Expected: ${Array.from(debuggingModesMapping.keys()).join('. ')}. Given ${config.debuggingMode}`);
+    }
+
+    const userConfig: UserDeviceConfig = {
+        debuggingMode,
+        debug
     };
 
-    const selectedSerialPort = lauchArguments.serialPort;
-    if(selectedSerialPort !== undefined){
-        if(typeof selectedSerialPort !== 'string'){
-            throw new InvalidDebuggerConfiguration('serialPort is expected to be a string');
+    if(debug){
+        switch(debuggingMode){
+            case DebuggingMode.remoteDebugging:
+                userConfig.remoteDebuggingConfig = await assertAndCreateUserRemoteDebuggingConfig(config.remoteDebuggingConfig);
+                break;
+            case DebuggingMode.edward:
+                userConfig.edwardDebuggingConfig = await assertAndCreateEdwardDebuggingConfig(config.edwardDebuggingConfig);
+                break;
+            case DebuggingMode.outOfThings:
+                userConfig.outOfThingsConfig = await assertAndCreateOutOfThingsDebuggingConfig(config.outOfThingsConfig);
+                break;
+            default:
+                throw new InvalidDebuggerConfiguration(`Provided unsupported debugging mode ${debuggingMode}`);
         }
-        else{
-            args.serialPort = selectedSerialPort;
-        }
+
     }
 
-    const selectedFQBN = lauchArguments.fqbn;
-    if(selectedFQBN !== undefined){
-        if(typeof selectedFQBN !== 'string'){
-            throw new InvalidDebuggerConfiguration('fqbn is expected to be a string');
-        }
-        else{
-            args.fqbn = selectedFQBN;
-        }
-    }else if(target === DeploymentMode.MCUVM){
-        throw new InvalidDebuggerConfiguration('fqbn is mandatory when targetting a MCU');
-    }
-
-
-    const selectedBaudrate = lauchArguments.baudRate;
-    if(selectedBaudrate !== undefined){
-        if(typeof selectedBaudrate !== 'number'){
-            throw new InvalidDebuggerConfiguration('baudrate is expected to be a number');
-        }
-        else{
-            args.baudrate = selectedBaudrate;
-        }
-    }
-    return args;
-}
-
-async function fillMissingValues(args: UserConfig): Promise<UserConfig> {
-    if(args.target !== DeploymentMode.MCUVM){
-        return args;
-    }
-
-    // case where 
-    if(args.serialPort === undefined){
-        console.info('No serial port set for Board');
-        console.info('searching for a serial port to use');
-        const boards = await listAvailableBoards();
-        if (boards.length === 0) {
-            const errMsg = 'no serialPort provided nor a connected board detected';
-            console.error(errMsg);
-            throw new Error(errMsg);
-        }
-        args.serialPort = boards[0];
-    }
-
-    if(args.baudrate === undefined){
-        console.info('No baudrate set');
-        console.info(`failling back to default ${BoardBaudRate.BD_115200}`);
-        args.baudrate = BoardBaudRate.BD_115200;
-    }
-
-    const fqbns = await listAllFQBN();
-    const targetBoard = fqbns.find((board) => {
-        return board.fqbn === args.fqbn;
-    });
-    if (targetBoard === undefined) {
-        const errMsg = `No board found with fqbn ${args.fqbn}`;
-        console.error(errMsg);
-        throw new Error(errMsg);
-    }
-    args.fqbn = targetBoard.fqbn;
-    if(targetBoard.boardName !=='' ){
-        args.boardName = targetBoard.boardName;
-    }
-    return args;
+    return userConfig;
 }
 
 
-export function createVMConfig(userConfig: UserConfig):  VMConfigArgs {
-    const  vmConfigArgs: VMConfigArgs = {
-        program: userConfig.program,
-        disableStrictModuleLoad: true
+
+export async function createUserConfigFromLaunchArgs(config: any): Promise<UserConfig> {
+    if(typeof config !== 'object'){
+        throw new InvalidDebuggerConfiguration('UserConfig expected to be an object');
+    }
+
+    if(config.devices === undefined || !Array.isArray(config.devices)){
+        throw new InvalidDebuggerConfiguration('devices is expected to be an array of UserDeviceConfig');
+    }
+
+    const devices = [];
+    let hasOneSetForDebug = false;
+    for (let i = 0; i < config.devices.length; i++) {
+        const dc = await assertAndCreateUserDeviceConfig(config.devices[i]);
+        devices.push(dc);
+        if(!!dc.debug){
+            hasOneSetForDebug = true;
+        }
+    }
+
+    if(!hasOneSetForDebug){
+        throw new InvalidDebuggerConfiguration('UserConfig should have at least one device set for debugging');
+    }
+
+    return {
+        devices
     };
-
-    if(userConfig.target === DeploymentMode.MCUVM) {
-        if(userConfig.serialPort !== undefined){
-            vmConfigArgs.serialPort = userConfig.serialPort;
-        }
-        if(userConfig.baudrate !==undefined ){
-            vmConfigArgs.baudrate = userConfig.baudrate;
-        }
-    }
-    return vmConfigArgs;
-}
+} 
