@@ -15,5 +15,9 @@ export async function startOutOfThingsDebuggingWithDevVMCommand(viewManager: Vie
         isOutOfThingsDebugger: true,
     };
     const dbg = new RemoteDebuggerBackend(vm, DebuggingMode.outOfThings, opts);
+    if(!(await dbg.targetVM.subscribeOnNewEvent((ev)=>{
+        dbg.onNewEvent(ev);}))) {
+        throw new Error('Could not subscribe to New Input Event');
+    }
     viewManager.createViews(dbg);
 };
