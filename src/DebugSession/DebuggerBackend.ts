@@ -103,6 +103,13 @@ export class RemoteDebuggerBackend extends EventEmitter {
     set breakpoints(bps: BreakpointBackend[]) {
         this._breakpoints = bps;
     }
+    
+    eventsToHandle(): WASM.Event[] {
+        if(this.targetVM instanceof OutOfPlaceVM){
+            return this.targetVM.eventsToHandle;
+        }
+        return [];
+    }
 
     isOOTDBG(): boolean {
         return this._isOutOfThingsDBG;
