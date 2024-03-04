@@ -39,11 +39,7 @@ export class StackProvider implements vscode.TreeDataProvider<StackItem>, Runtim
         // this._onDidChangeTreeData.fir
     }
 
-    refreshView(runtimeState?: Context): void {
-        if(runtimeState !== undefined){
-            throw Error('Should not update runtimeState');
-            // this.runtimeState = runtimeState; 
-        }
+    refreshView(context?: Context): void {
         this._onDidChangeTreeData.fire();
     }
 }
