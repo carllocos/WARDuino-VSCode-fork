@@ -19,14 +19,15 @@ export class EventsProvider implements vscode.TreeDataProvider<EventItem>, Runti
 
     getChildren(element?: EventItem): ProviderResult<EventItem[]> {
         if (element === undefined) {
-            return this.events;
-        } else if (element.collapsibleState !== TreeItemCollapsibleState.None) {
-            let children = [new EventItem(`topic: ${element.topic}`, '')];
-            if (element.payload.length > 0) {
-                children.push(new EventItem(`payload: ${element.payload}`, ''));
+            if(this.events.length === 0){
+                return this.dbg?.eventsToHandle().map((ev: WASM.Event)=>{
+                    return new EventItem(ev.topic, ev.payload);
+                }) ?? [];
             }
-            return children;
-        }
+            else{
+                return this.events;
+            }
+        } 
         return undefined;
     }
 
