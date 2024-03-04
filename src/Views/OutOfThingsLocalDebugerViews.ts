@@ -41,16 +41,16 @@ export class OutOfThingsLocalDebuggerViews extends RuntimeViewsRefresher {
     }
 
     showViews(): void {
+        this.isHidden = false;
         this.views.forEach((v)=>{
             vscode.commands.executeCommand('setContext',v.when , true);
         });
-
-        STACK_PROVIDER.setCurrentDBG(this.dbg);
-        PROXIES_PROVIDER.setCurrentDBG(this.dbg);
-        STACK_PROVIDER.refreshView();
-        EVENTS_PROVIDER.refreshView();
-        PROXIES_PROVIDER.refreshView();
-        this.isHidden = false;
+        this.viewsProviders.forEach((v)=>{
+            v.setCurrentDBG(this.dbg);
+        });
+        this.viewsProviders.forEach((v)=>{
+            v.refreshView();
+        });
     }
 
     registerViewCallbacks(): void {
