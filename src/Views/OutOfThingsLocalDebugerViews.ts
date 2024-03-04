@@ -18,6 +18,10 @@ export class OutOfThingsLocalDebuggerViews extends RuntimeViewsRefresher {
         this.addView(STACKVIEWCONFIG);
         this.addView(EVENTSVIEWCONFIG);
         this.addView(PROXIESVIEWCONFIG);
+
+        this.addViewProvider(STACK_PROVIDER);
+        this.addViewProvider(PROXIES_PROVIDER);
+        this.addViewProvider(EVENTS_PROVIDER);
     }
 
     private addView(v: ViewsConfig): void{
