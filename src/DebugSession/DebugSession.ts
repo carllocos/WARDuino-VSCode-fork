@@ -265,9 +265,9 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
                 this.createSource(context.sourceMap.sourceCodeFilePath),
                 // TODO: figure out why convertDebggerLineToClient has line Starts at one setDebuggerStartAt1(true)
                 this.convertDebuggerLineToClient(sourceCodeLocation.linenr),
-                this.convertDebuggerColumnToClient(sourceCodeLocation.columnStart));
+                this.convertDebuggerColumnToClient(sourceCodeLocation.columnStart - 1));
 
-            f.endColumn = this.convertDebuggerColumnToClient(sourceCodeLocation.columnEnd);
+            f.endColumn = this.convertDebuggerColumnToClient(sourceCodeLocation.columnEnd - 1);
             return f;
         });
         response.body = {
