@@ -3,6 +3,7 @@ import { OutOfThingsSessionItem } from '../Views/OutOfThingsSessionProvider';
 import { ViewsManager } from '../Views/ViewsManager';
 import { DbgOptArgs, RemoteDebuggerBackend } from '../DebugSession/DebuggerBackend';
 import { DebuggingMode } from '../DebuggerConfig';
+import { OOTMONITORVIEWCONFIG } from '../Views/ViewsConstants';
 
 export async function startOutOfThingsDebuggingWithDevVMCommand(viewManager: ViewsManager, resource: OutOfThingsSessionItem): Promise<void>{
     const config: OutOfThingsSpawnConfig = {
@@ -19,6 +20,9 @@ export async function startOutOfThingsDebuggingWithDevVMCommand(viewManager: Vie
         dbg.onNewEvent(ev);}))) {
         throw new Error('Could not subscribe to New Input Event');
     }
+
+    resource.handledBy(dbg);
     viewManager.createViews(dbg, resource.dbg);
     viewManager.devicesView.show();
+    viewManager.getDataProvider(OOTMONITORVIEWCONFIG.id).refreshView();
 };
