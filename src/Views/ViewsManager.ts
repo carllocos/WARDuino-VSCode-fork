@@ -9,6 +9,10 @@ import { RuntimeViewsRefresher } from './ViewsRefresh';
 import { DevicesView } from './DevicesProvider';
 import { BREAKPOINTPOLICIESVIEWCONFIG, BREAKPOINT_POLICY_PROVIDER, EVENTSVIEWCONFIG, EVENTS_PROVIDER, OOTMONITORVIEWCONFIG, PROXIESVIEWCONFIG, PROXIES_PROVIDER, SESSION_PROVIDER, STACKVIEWCONFIG, STACK_PROVIDER } from './ViewsConstants';
 import { OutOfThingsLocalDebuggerViews } from './OutOfThingsLocalDebugerViews';
+import { RuntimeViewRefreshInterface } from './RuntimeViewRefreshInterface';
+
+
+export interface DataProviderInterface<T> extends  vscode.TreeDataProvider<T>, RuntimeViewRefreshInterface{}
 
 export class ViewsManager{
 
@@ -18,22 +22,42 @@ export class ViewsManager{
     public readonly devicesView: DevicesView;
     private _disposables: vscode.Disposable[];
 
+    private _dataProvider: Map<string, DataProviderInterface<any>>;
 
     constructor(session: WARDuinoDebugSession){
         this.session = session;
         this.devicesView = new DevicesView(session.devicesManager);
         this.viewMaps = new Map();
         this._disposables  = [];
+        this._dataProvider = new Map();
         this.registerDataProviders();
-        this._sessionTreeView = vscode.window.createTreeView(OOTMONITORVIEWCONFIG.id, {treeDataProvider: SESSION_PROVIDER});
     }
 
     private registerDataProviders(): void{
-        this._disposables.push(vscode.window.registerTreeDataProvider(STACKVIEWCONFIG.id, STACK_PROVIDER));
-        this._disposables.push(vscode.window.registerTreeDataProvider(EVENTSVIEWCONFIG.id, EVENTS_PROVIDER));
-        this._disposables.push(vscode.window.registerTreeDataProvider(BREAKPOINTPOLICIESVIEWCONFIG.id, BREAKPOINT_POLICY_PROVIDER));
-        this._disposables.push(vscode.window.registerTreeDataProvider(OOTMONITORVIEWCONFIG.id, SESSION_PROVIDER));
-        this._disposables.push(vscode.window.registerTreeDataProvider(PROXIESVIEWCONFIG.id, PROXIES_PROVIDER));
+        const v: Array<[string, DataProviderInterface<any>]> = [
+            [STACKVIEWCONFIG.id, STACK_PROVIDER],
+            [EVENTSVIEWCONFIG.id, EVENTS_PROVIDER],
+            [BREAKPOINTPOLICIESVIEWCONFIG.id, BREAKPOINT_POLICY_PROVIDER],
+            [OOTMONITORVIEWCONFIG.id, SESSION_PROVIDER],
+            [PROXIESVIEWCONFIG.id, PROXIES_PROVIDER],
+        ];
+        v.forEach(([id, dp]: [string, DataProviderInterface<any>]) => {
+            this.registerDataProvider(id, dp);
+        });
+    }
+
+    private registerDataProvider<T>(id: string, dp: DataProviderInterface<T>): void{
+        this._dataProvider.set(id, dp);
+        this._disposables.push(vscode.window.registerTreeDataProvider(id, dp));
+    }
+
+
+    getDataProvider<T>(id: string): DataProviderInterface<T>{
+        const d= this._dataProvider.get(id);
+        if(d === undefined){
+            throw new Error(`Data provder with id ${id} is unexisting`);
+        }
+        return d;
     }
 
     hasView(db: RemoteDebuggerBackend): boolean{
