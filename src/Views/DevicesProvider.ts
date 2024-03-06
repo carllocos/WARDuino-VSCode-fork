@@ -63,7 +63,6 @@ export class DevicesProvider implements vscode.TreeDataProvider<DeviceItem>, Run
 
     setCurrentDBG(dbg: RemoteDebuggerBackend): void {
         this.selectedDevice = dbg;
-        this._onDidChangeTreeData.fire();
     }
 
     getParent(item: DeviceItem) {
