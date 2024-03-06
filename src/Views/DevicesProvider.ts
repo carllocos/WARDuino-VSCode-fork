@@ -29,8 +29,8 @@ export class DevicesView {
         this._devicesProvider.setCurrentDBG(dbg);
     }
 
-    addDevice(device: RemoteDebuggerBackend): void{
-        this._devicesProvider.createItem(device, this._devicesTreeView);
+    addDevice(device: RemoteDebuggerBackend, parentDevice?: RemoteDebuggerBackend): void{
+        this._devicesProvider.createItem(device, parentDevice, this._devicesTreeView);
     }
 }
 
@@ -47,10 +47,18 @@ export class DevicesProvider implements vscode.TreeDataProvider<DeviceItem>, Run
         this.selectedDevice = undefined;
     }
 
-    createItem(dev: RemoteDebuggerBackend, view: vscode.TreeView<TreeItem>): void {
+    createItem(dev: RemoteDebuggerBackend,  parent: RemoteDebuggerBackend | undefined ,view: vscode.TreeView<TreeItem>): void {
         const i = new DeviceItem(dev, view);
-        this.items.push(i);
-        this._onDidChangeTreeData.fire();
+        const p = this.items.find((i)=>{
+            return i.device === parent;
+        });
+        if(p !== undefined){
+            i.parent = p;
+            p.addChild(i);
+        }
+        else{
+            this.items.push(i);
+        }
     }
 
     setCurrentDBG(dbg: RemoteDebuggerBackend): void {

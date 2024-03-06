@@ -54,13 +54,13 @@ export class ViewsManager{
         this.devicesView.changeDeviceBeingViewed(db);
     }
 
-    createViews(db: RemoteDebuggerBackend): void {
+    createViews(db: RemoteDebuggerBackend, parentDBG?: RemoteDebuggerBackend): void {
         if(this.hasView(db)){
             console.log('Views already created for provided RemoteDebuggerBackend');
             return;
         }
 
-        this.devicesView.addDevice(db);
+        this.devicesView.addDevice(db, parentDBG);
 
         switch (db.debuggingMode){
             case DebuggingMode.remoteDebugging:
