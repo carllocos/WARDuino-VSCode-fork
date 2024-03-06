@@ -9,11 +9,8 @@ import { BREAKPOINTPOLICIESVIEWCONFIG, BREAKPOINT_POLICY_PROVIDER, EVENTSVIEWCON
 
 export class OutOfThingsTargetDebuggerViews extends RuntimeViewsRefresher {
 
-    private _sessionTreeView: vscode.TreeView<vscode.TreeItem>;
-
-    constructor(session: WARDuinoDebugSession, dbg: RemoteDebuggerBackend, treeView: vscode.TreeView<vscode.TreeItem>) {
+    constructor(session: WARDuinoDebugSession, dbg: RemoteDebuggerBackend) {
         super(session, dbg);
-        this._sessionTreeView = treeView;
     }
 
     hideViews(): void {
@@ -51,7 +48,7 @@ export class OutOfThingsTargetDebuggerViews extends RuntimeViewsRefresher {
 
         this.dbg.monitor.subscribeOnSnapshot((state: WasmState)=>{
             const snapshot = new Context(state, this.dbg.getSourceMap());
-            SESSION_PROVIDER.createItemForSnapshot(this.dbg, this.dbg.monitor, snapshot, this._sessionTreeView);
+            SESSION_PROVIDER.createItemForSnapshot(this.dbg, this.dbg.monitor, snapshot);
             SESSION_PROVIDER.refreshView();
         });
     }

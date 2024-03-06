@@ -28,14 +28,14 @@ export class OutOfThingsSessionProvider implements vscode.TreeDataProvider<OutOf
         this.dbg = dbg;
     }
 
-    createItemForSnapshot(dbg: RemoteDebuggerBackend, monitor: OutOfThingsMonitor, snapshot: Context, view: vscode.TreeView<vscode.TreeItem>): OutOfThingsSessionItem {
+    createItemForSnapshot(dbg: RemoteDebuggerBackend, monitor: OutOfThingsMonitor, snapshot: Context): OutOfThingsSessionItem {
         const sl = snapshot.getCurrentSourceCodeLocation();
         let label = 'undefined';
         if(sl !== undefined){
             label = ` line nr ${sl.linenr} col start ${sl.columnStart}`;
         }
         const idx = this.items.length;
-        const item =  new OutOfThingsSessionItem(dbg, monitor, label, snapshot, idx, view);
+        const item =  new OutOfThingsSessionItem(dbg, monitor, label, snapshot, idx);
         this.items.push(item);
         return item;
     }
@@ -68,8 +68,6 @@ export class OutOfThingsSessionItem extends vscode.TreeItem {
     public readonly snapshot: Context;
     public readonly index: number;
     public readonly monitor: OutOfThingsMonitor;
-    private selected: boolean;
-    private view: vscode.TreeView<TreeItem>;
     public readonly dbg: RemoteDebuggerBackend;
 
     constructor(
@@ -78,7 +76,6 @@ export class OutOfThingsSessionItem extends vscode.TreeItem {
         sessionlabel: string,
         snapshot: Context,
         timelineIndex: number,
-        view: vscode.TreeView<TreeItem>,
         treeItemCollapsibleState: TreeItemCollapsibleState = TreeItemCollapsibleState.None
     ) {
         super(sessionlabel, treeItemCollapsibleState);
@@ -86,9 +83,7 @@ export class OutOfThingsSessionItem extends vscode.TreeItem {
         this.monitor = monitor;
         this.snapshot = snapshot;
         this.index = timelineIndex;
-        this.selected = false;
         this.contextValue = AllowedAction.debugExternally;
-        this.view = view;
         this.command = { title: START_DEBUGGING_COMMAND.title, command: START_DEBUGGING_COMMAND.command, arguments: [this] };
         if(true){
         // if (snapshot.hasException()) {
@@ -96,23 +91,5 @@ export class OutOfThingsSessionItem extends vscode.TreeItem {
         }
     }
 
-    public select() {
-        this.selected = true;
-        if (this.view) {
-            this.view.reveal(this);
-        }
-    }
-
-    public deSelect() {
-        this.selected = false;
-    }
-
-    public toggle() {
-        this.selected = !this.selected;
-    }
-
-    public isSelected() {
-        return this.selected;
-    }
 
 }

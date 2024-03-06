@@ -19,8 +19,6 @@ export class ViewsManager{
     private _disposables: vscode.Disposable[];
 
 
-    private _sessionTreeView: vscode.TreeView<vscode.TreeItem>;
-
     constructor(session: WARDuinoDebugSession){
         this.session = session;
         this.devicesView = new DevicesView(session.devicesManager);
@@ -74,7 +72,7 @@ export class ViewsManager{
                 if(db.isOOTDBG()){
                     this.viewMaps.set(db, new OutOfThingsLocalDebuggerViews(this.session, db));
                 }else{
-                    this.viewMaps.set(db, new OutOfThingsTargetDebuggerViews(this.session,db, this._sessionTreeView));
+                    this.viewMaps.set(db, new OutOfThingsTargetDebuggerViews(this.session,db));
                 }
                 break;
             default:
