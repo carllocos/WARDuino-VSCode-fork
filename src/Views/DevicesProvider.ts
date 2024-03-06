@@ -78,7 +78,13 @@ export class DevicesProvider implements vscode.TreeDataProvider<DeviceItem>, Run
         return element.children;
     }
 
-    getTreeItem(element: DeviceItem): TreeItem | Thenable<TreeItem> {
+    getTreeItem(element: DeviceItem): vscode.TreeItem | Thenable<vscode.TreeItem> {
+        if(element.device === this.selectedDevice){
+            element.select();
+        }
+        else {
+            element.deSelect();
+        }
         return element;
     }
 
