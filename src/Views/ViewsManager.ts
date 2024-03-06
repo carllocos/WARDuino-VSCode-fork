@@ -15,7 +15,7 @@ export class ViewsManager{
     private readonly session: WARDuinoDebugSession;
     private readonly viewMaps: Map<RemoteDebuggerBackend, RuntimeViewsRefresher>;
     private currentViews?: RuntimeViewsRefresher;
-    private devicesView: DevicesView;
+    public readonly devicesView: DevicesView;
     private _disposables: vscode.Disposable[];
 
 
