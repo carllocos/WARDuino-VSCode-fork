@@ -3,7 +3,7 @@ import { RuntimeViewsRefresher } from './ViewsRefresh';
 import { BackendDebuggerEvent, RemoteDebuggerBackend } from '../DebugSession/DebuggerBackend';
 import { WARDuinoDebugSession } from '../DebugSession/DebugSession';
 import { Context} from '../State/context';
-import {SourceCodeMapping, WASM, WasmState} from 'wasmito';
+import {BreakpointDefaultPolicy, SourceCodeMapping, WASM, WasmState} from 'wasmito';
 import { StoppedEvent } from 'vscode-debugadapter';
 import { BREAKPOINTPOLICIESVIEWCONFIG, BREAKPOINT_POLICY_PROVIDER, EVENTSVIEWCONFIG, EVENTS_PROVIDER, OOTMONITORVIEWCONFIG, PROXIESVIEWCONFIG, SESSION_PROVIDER, STACKVIEWCONFIG } from './ViewsConstants';
 
@@ -34,7 +34,9 @@ export class OutOfThingsTargetDebuggerViews extends RuntimeViewsRefresher {
             EVENTS_PROVIDER.refreshEvents(context.events.values);
         });
         this.dbg.on(BackendDebuggerEvent.BreakpointReached, (context: Context, location: SourceCodeMapping)=>{
-            this.session.sendEvent(new StoppedEvent('breakpoint', this.session.THREAD_ID));
+            if(this.dbg.targetVM.breakpointPolicy instanceof BreakpointDefaultPolicy){
+                this.session.sendEvent(new StoppedEvent('breakpoint', this.session.THREAD_ID));
+            }
             this.refreshViews(context);
             EVENTS_PROVIDER.refreshEvents(context.events.values);
         });
