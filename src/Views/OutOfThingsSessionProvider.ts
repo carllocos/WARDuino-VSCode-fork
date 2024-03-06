@@ -8,7 +8,7 @@ import { OutOfThingsMonitor } from 'wasmito';
 import { START_DEBUGGING_COMMAND } from '../Commands/CommandsConstants';
 import { RemoteDebuggerBackend } from '../DebugSession/DebuggerBackend';
 
-export enum AllowedAction {
+enum SessionContext {
     debugExternally = 'debug-externally',
     none = 'none'
 }
@@ -85,7 +85,7 @@ export class OutOfThingsSessionItem extends vscode.TreeItem {
         this.monitor = monitor;
         this.snapshot = snapshot;
         this.index = timelineIndex;
-        this.contextValue = AllowedAction.debugExternally;
+        this.contextValue = SessionContext.debugExternally;
         this.command = { title: START_DEBUGGING_COMMAND.title, command: START_DEBUGGING_COMMAND.command, arguments: [this] };
         if(true){
         // if (snapshot.hasException()) {
@@ -95,7 +95,7 @@ export class OutOfThingsSessionItem extends vscode.TreeItem {
 
     public handledBy(dbg: RemoteDebuggerBackend): void{
         this._handledBy = dbg;
-        this.contextValue =  AllowedAction.none;
+        this.contextValue =  SessionContext.none;
         this.label = `${this.label} (${this._handledBy.targetVM.platformConfig.deviceConfig.name})`;
         this.command = undefined;
     }
