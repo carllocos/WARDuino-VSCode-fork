@@ -72,18 +72,10 @@ export class DevicesProvider implements vscode.TreeDataProvider<DeviceItem>, Run
 
     getChildren(element?: DeviceItem): ProviderResult<DeviceItem[]> {
         if (element === undefined) {
-            for (let i = 0; i < this.items.length; i++) {
-                const item = this.items[i];
-                if(item.device === this.selectedDevice){
-                    item.select();
-                }
-                else {
-                    item.deSelect();
-                }
-            }
+            // undefined when at the root
             return this.items;
         }
-        return undefined;
+        return element.children;
     }
 
     getTreeItem(element: DeviceItem): TreeItem | Thenable<TreeItem> {
