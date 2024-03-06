@@ -38,10 +38,6 @@ export class ViewsManager{
         this._disposables.push(vscode.window.registerTreeDataProvider(PROXIESVIEWCONFIG.id, PROXIES_PROVIDER));
     }
 
-    showDevicesView(): void {
-        this.devicesView.show();
-    }
-
     hasView(db: RemoteDebuggerBackend): boolean{
         return this.viewMaps.has(db);
     }
