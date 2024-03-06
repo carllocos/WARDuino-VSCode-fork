@@ -97,6 +97,8 @@ export class DeviceItem extends vscode.TreeItem {
     public readonly device: RemoteDebuggerBackend;
     private selected: boolean;
     private view: vscode.TreeView<TreeItem>;
+    public parent: DeviceItem | undefined;
+    public readonly children: DeviceItem[];
 
     constructor(
         device: RemoteDebuggerBackend,
@@ -108,6 +110,7 @@ export class DeviceItem extends vscode.TreeItem {
         this.view = view;
         this.selected  = false;
         this.command = { title: VIEW_DEVICE_COMMAND.title, command: VIEW_DEVICE_COMMAND.command, arguments: [this] };
+        this.children = [];
     }
 
     public select() {
@@ -115,6 +118,15 @@ export class DeviceItem extends vscode.TreeItem {
         if (this.view) {
             this.view.reveal(this);
         }
+    }
+
+    public setParent(p: DeviceItem): void{
+        this.parent = p;
+    }
+
+    public addChild(i: DeviceItem): void{
+        this.children.push(i);
+        this.collapsibleState = TreeItemCollapsibleState.Expanded;
     }
 
     public deSelect() {
