@@ -52,6 +52,7 @@ export class ViewsManager{
         this.currentViews = v;
         this.currentViews.showViews();
         this.devicesView.changeDeviceBeingViewed(db);
+        this.devicesView.show();
     }
 
     createViews(db: RemoteDebuggerBackend, parentDBG?: RemoteDebuggerBackend): void {

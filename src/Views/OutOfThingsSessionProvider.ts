@@ -28,14 +28,14 @@ export class OutOfThingsSessionProvider implements vscode.TreeDataProvider<OutOf
         this.dbg = dbg;
     }
 
-    createItemForSnapshot(monitor: OutOfThingsMonitor, snapshot: Context, view: vscode.TreeView<vscode.TreeItem>): OutOfThingsSessionItem {
+    createItemForSnapshot(dbg: RemoteDebuggerBackend, monitor: OutOfThingsMonitor, snapshot: Context, view: vscode.TreeView<vscode.TreeItem>): OutOfThingsSessionItem {
         const sl = snapshot.getCurrentSourceCodeLocation();
         let label = 'snapshot';
         if(sl !== undefined){
             label += ` line nr ${sl.linenr} col start ${sl.columnStart}`;
         }
         const idx = this.items.length;
-        const item =  new OutOfThingsSessionItem(monitor, label, snapshot, idx, view);
+        const item =  new OutOfThingsSessionItem(dbg, monitor, label, snapshot, idx, view);
         this.items.push(item);
         return item;
     }
@@ -70,8 +70,10 @@ export class OutOfThingsSessionItem extends vscode.TreeItem {
     public readonly monitor: OutOfThingsMonitor;
     private selected: boolean;
     private view: vscode.TreeView<TreeItem>;
+    public readonly dbg: RemoteDebuggerBackend;
 
     constructor(
+        dbg: RemoteDebuggerBackend,
         monitor: OutOfThingsMonitor,
         sessionlabel: string,
         snapshot: Context,
@@ -80,6 +82,7 @@ export class OutOfThingsSessionItem extends vscode.TreeItem {
         treeItemCollapsibleState: TreeItemCollapsibleState = TreeItemCollapsibleState.None
     ) {
         super(sessionlabel, treeItemCollapsibleState);
+        this.dbg = dbg;
         this.monitor = monitor;
         this.snapshot = snapshot;
         this.index = timelineIndex;

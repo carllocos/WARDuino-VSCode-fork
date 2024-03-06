@@ -19,5 +19,6 @@ export async function startOutOfThingsDebuggingWithDevVMCommand(viewManager: Vie
         dbg.onNewEvent(ev);}))) {
         throw new Error('Could not subscribe to New Input Event');
     }
-    viewManager.createViews(dbg);
+    viewManager.createViews(dbg, resource.dbg);
+    viewManager.devicesView.show();
 };

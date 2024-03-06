@@ -51,7 +51,7 @@ export class OutOfThingsTargetDebuggerViews extends RuntimeViewsRefresher {
 
         this.dbg.monitor.subscribeOnSnapshot((state: WasmState)=>{
             const snapshot = new Context(state, this.dbg.getSourceMap());
-            SESSION_PROVIDER.createItemForSnapshot(this.dbg.monitor, snapshot, this._sessionTreeView);
+            SESSION_PROVIDER.createItemForSnapshot(this.dbg, this.dbg.monitor, snapshot, this._sessionTreeView);
             SESSION_PROVIDER.refreshView();
         });
     }
