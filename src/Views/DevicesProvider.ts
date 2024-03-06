@@ -41,7 +41,6 @@ export class DevicesProvider implements vscode.TreeDataProvider<DeviceItem>, Run
 
     private readonly items: DeviceItem[];
     private selectedDevice?: RemoteDebuggerBackend;
-    private dbg?: RemoteDebuggerBackend;
 
     constructor() {
         this.items = [];
