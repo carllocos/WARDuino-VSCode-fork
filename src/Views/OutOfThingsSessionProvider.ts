@@ -10,6 +10,7 @@ import { RemoteDebuggerBackend } from '../DebugSession/DebuggerBackend';
 
 export enum AllowedAction {
     debugExternally = 'debug-externally',
+    none = 'none'
 }
 
 export class OutOfThingsSessionProvider implements vscode.TreeDataProvider<OutOfThingsSessionItem>, RuntimeViewRefreshInterface {
@@ -69,6 +70,7 @@ export class OutOfThingsSessionItem extends vscode.TreeItem {
     public readonly index: number;
     public readonly monitor: OutOfThingsMonitor;
     public readonly dbg: RemoteDebuggerBackend;
+    private _handledBy?: RemoteDebuggerBackend;
 
     constructor(
         dbg: RemoteDebuggerBackend,
@@ -91,5 +93,11 @@ export class OutOfThingsSessionItem extends vscode.TreeItem {
         }
     }
 
+    public handledBy(dbg: RemoteDebuggerBackend): void{
+        this._handledBy = dbg;
+        this.contextValue =  AllowedAction.none;
+        this.label = `${this.label} (${this._handledBy.targetVM.platformConfig.deviceConfig.name})`;
+        this.command = undefined;
+    }
 
 }
