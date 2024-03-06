@@ -58,8 +58,8 @@ export class DevicesProvider implements vscode.TreeDataProvider<DeviceItem>, Run
         this._onDidChangeTreeData.fire();
     }
 
-    getParent(item: TreeItem) {
-        return undefined;
+    getParent(item: DeviceItem) {
+        return item.parent;
     }
 
     getChildren(element?: DeviceItem): ProviderResult<DeviceItem[]> {
