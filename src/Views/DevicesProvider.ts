@@ -88,7 +88,6 @@ export class DevicesProvider implements vscode.TreeDataProvider<DeviceItem>, Run
     }
 
     refreshView(runtimeState?: Context) {
-        console.log('TODO TimeLine provider view');
         this._onDidChangeTreeData.fire();
     }
 }
