@@ -30,9 +30,9 @@ export class OutOfThingsSessionProvider implements vscode.TreeDataProvider<OutOf
 
     createItemForSnapshot(dbg: RemoteDebuggerBackend, monitor: OutOfThingsMonitor, snapshot: Context, view: vscode.TreeView<vscode.TreeItem>): OutOfThingsSessionItem {
         const sl = snapshot.getCurrentSourceCodeLocation();
-        let label = 'snapshot';
+        let label = 'undefined';
         if(sl !== undefined){
-            label += ` line nr ${sl.linenr} col start ${sl.columnStart}`;
+            label = ` line nr ${sl.linenr} col start ${sl.columnStart}`;
         }
         const idx = this.items.length;
         const item =  new OutOfThingsSessionItem(dbg, monitor, label, snapshot, idx, view);
