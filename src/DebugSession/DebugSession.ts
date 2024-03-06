@@ -320,12 +320,12 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
             this.viewsManager.createViews(this.selectedDebugBackend);
             this.viewsManager.showViews(this.selectedDebugBackend);
 
-            await this.selectedDebugBackend.refreshState(); // TODO make more general
             this.sendResponse(response);
 
             // set bps that could not be set during start
             await this.setMissedBreakpoints();
             if(this.selectedDebugBackend.isPaused()){
+                await this.selectedDebugBackend.refreshState(); // TODO make more general
                 this.onPause();
             } else{
                 this.onRunning();
