@@ -1,9 +1,8 @@
-import { DeviceManager, DeploymentMode, SourceCodeLocation, SourceMap, StateRequest, WARDuinoVM, WasmState, PlatformBuilderConfig, Platform, BoardFQBN, DeviceConfigArgs, BoardBaudRate, VMConfigArgs, WASM, OutOfThingsMonitor, InputMode } from 'wasmito';
+import { DeviceManager, SourceCodeLocation, SourceMap, StateRequest, WARDuinoVM, WasmState, Platform, BoardFQBN, BoardBaudRate, VMConfigArgs, WASM, Breakpoint as WasmBreakpoint, OutOfPlaceVM, OutOfThingsMonitor, InputMode, ArduinoBoardBuilder, createArduinoPlatform, PlatformTarget, createDevPlatform} from 'wasmito';
 import {EventEmitter} from 'events';
-import { Context } from '../State/context';
-import { DebuggingMode, UserDeviceConfig, UserEdwardDebuggingConfig, UserMCUConnectionConfig, UserOutOfThingsDebuggingConfig, UserRemoteDebuggingConfig } from '../DebuggerConfig';
+import { Context, Events } from '../State/context';
+import { DebuggingMode, TargetProgram, UserDeviceConfig, UserEdwardDebuggingConfig, UserMCUConnectionConfig, UserOutOfThingsDebuggingConfig, UserRemoteDebuggingConfig } from '../DebuggerConfig';
 import {  Source } from 'vscode-debugadapter';
-import { Breakpoint as WasmBreakpoint, OutOfPlaceVM} from 'wasmito';
 
 export class BackendDebuggerEvent {
     public static readonly StateUpdated: string = 'state updated';
@@ -347,7 +346,7 @@ export async function createTargetVM(deviceManager: DeviceManager, platformTarge
 
 
 export async function setupForEdwardDebugging(devicesManager: DeviceManager, config: UserEdwardDebuggingConfig): Promise<RemoteDebuggerBackend>{
-    const targetVM = await createTargetVM(devicesManager, config.programOnTarget, config.target, !!config.deployOnStart, config.toolPortExistingVM, config.mcuConfig);
+    const targetVM = await createTargetVM(devicesManager, config.target, !!config.deployOnStart, config.program, config.toolPortExistingVM, config.mcuConfig);
     let ooVM: OutOfPlaceVM | undefined;
     if(config.toolPortExistingVM){
         ooVM =  await devicesManager.setupAlreadySpawnedVMForOutOfPlaceVM(config.toolPortExistingVM, targetVM, config.serverPortForProxyCall, 10000);
@@ -364,7 +363,7 @@ export async function setupForEdwardDebugging(devicesManager: DeviceManager, con
 
 
 async function setupForOutOfThingsDebugging(devicesManager:DeviceManager, config: UserOutOfThingsDebuggingConfig): Promise<RemoteDebuggerBackend> {
-    const targetVM = await createTargetVM(devicesManager, config.programOnTarget, config.target, !!config.deployOnStart, config.toolPortExistingVM, config.mcuConfig);
+    const targetVM = await createTargetVM(devicesManager, config.target, !!config.deployOnStart, config.programOnTarget, config.toolPortExistingVM, config.mcuConfig);
     const monitor = devicesManager.createOutOfThingsMonitor(targetVM);
     const dbg = new RemoteDebuggerBackend(targetVM, DebuggingMode.outOfThings, {
         initialRunningState: RunningState.paused
@@ -374,7 +373,7 @@ async function setupForOutOfThingsDebugging(devicesManager:DeviceManager, config
 }
 
 async function setupForRemoteDebugging(devicesManager:DeviceManager, config: UserRemoteDebuggingConfig): Promise<RemoteDebuggerBackend> {
-    const targetVM = await createTargetVM(devicesManager, config.program, config.target, !!config.deployOnStart, config.toolPortExistingVM, config.mcuConfig);
+    const targetVM = await createTargetVM(devicesManager, config.target, !!config.deployOnStart, config.program, config.toolPortExistingVM, config.mcuConfig);
     const dbg= new RemoteDebuggerBackend(targetVM, DebuggingMode.remoteDebugging);
     if(!await targetVM.subscribeOnNewEvent(dbg.onNewEvent.bind(dbg))){
         throw new Error('Could not subscribe to on New IO Event');
