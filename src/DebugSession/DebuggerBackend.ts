@@ -89,7 +89,7 @@ export class RemoteDebuggerBackend extends EventEmitter {
         super();
         this.targetVM = vm;
         this.debuggingMode = debuggingMode;
-        this.context = opts?.initialContext ?? new Context(new WasmState({}), this.targetVM.getSourceMap()!);
+        this.context = opts?.initialContext ?? new Context(new WasmState({}), this.targetVM.sourceMap);
         this._breakpoints = [];
         this._runningState = opts?.initialRunningState ?? RunningState.paused;
         this._isOutOfThingsDBG = opts?.isOutOfThingsDebugger ?? false;
