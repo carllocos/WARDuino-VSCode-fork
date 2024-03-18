@@ -260,7 +260,7 @@ export class RemoteDebuggerBackend extends EventEmitter {
         const sourceMap = this.getSourceMap();
         this.context =  new Context(response, sourceMap);
         if(this.targetVM instanceof OutOfPlaceVM){
-            this.context.events = this.targetVM.eventsToHandle;
+            this.context.events = new Events(this.targetVM.eventsToHandle, this.getSourceMap());
         }
         this.emit(BackendDebuggerEvent.StateUpdated, this.context);
     }
