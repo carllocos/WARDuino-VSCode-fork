@@ -300,54 +300,47 @@ export class RemoteDebuggerBackend extends EventEmitter {
     }
 }
 
-async function createPlatformConfig(config: UserMCUConnectionConfig, vmConfigArgs: VMConfigArgs): Promise<PlatformBuilderConfig>{
-
-    const deviceConfigArgs: DeviceConfigArgs = {
-        name: config.boardName as string,
-        deploymentMode: DeploymentMode.MCUVM
-    };
-    const boardFQN: BoardFQBN = {
-        fqbn: config.fqbn as string,
-        boardName: config.boardName as string
-    };
-    return new PlatformBuilderConfig(Platform.Arduino, config.baudrate as BoardBaudRate, boardFQN, deviceConfigArgs, vmConfigArgs);
-}
-
-export async function createTargetVM(deviceManager: DeviceManager, program: string, deploymentMode: DeploymentMode, deploy: boolean,  existingToolPort: number | undefined, mcuConfig: UserMCUConnectionConfig | undefined): Promise<WARDuinoVM> 
+export async function createTargetVM(deviceManager: DeviceManager, platformTarget: PlatformTarget,  deploy: boolean, targetProgram: TargetProgram,  existingToolPort: number | undefined, mcuConfig: UserMCUConnectionConfig | undefined): Promise<WARDuinoVM> 
 {
-    const  vmConfigArgs: VMConfigArgs = {
-        program,
-        disableStrictModuleLoad: true
-    };
-
-    if(deploymentMode === DeploymentMode.DevVM){
-
+    if(platformTarget === PlatformTarget.DevVM){
+        const platform = await createDevPlatform({
+            selectedLanguage: {
+                targetLanguage: targetProgram.targetLanguage,
+            },
+            vmConfig: {
+                toolPort: existingToolPort,
+            }
+        });
         if(deploy){
-            const maxWaitTime = 3000;
-            return await deviceManager.spawnDevelopmentVM(vmConfigArgs, maxWaitTime);
+            return await deviceManager.spawnDevelopmentVM(platform, targetProgram.program);
         } else if(existingToolPort === undefined){
             throw new Error('existingToolPort is mandatory when connecting to an already deployed DevVM');
         }
         else{
-            const da: DeviceConfigArgs = {
-                name: 'la',
-                deploymentMode: DeploymentMode.DevVM
-            };
-            return await deviceManager.connectToExistingDevVM(da, existingToolPort, program, 3000);
+            return await deviceManager.connectToExistingDevVM(platform, 3000);
         }
     }
     else{
         if(mcuConfig === undefined){
             throw new Error('MCU config is mandatory when targetting mcu');
         }
-
-        vmConfigArgs.serialPort = mcuConfig.serialPort;
-        vmConfigArgs.baudrate = mcuConfig.baudrate;
-        const platformConfig = await createPlatformConfig(mcuConfig, vmConfigArgs);
+        const platform = await createArduinoPlatform({
+            selectedLanguage: {
+                targetLanguage: targetProgram.targetLanguage,
+            },
+            vmConfig: {
+                fqbn: {
+                    fqbn: mcuConfig.fqbn,
+                    boardName: mcuConfig.boardName ?? '',
+                },
+                serialPort: mcuConfig.serialPort,
+                baudrate: mcuConfig.baudrate
+            },
+        });
         if(deploy){
-            return await deviceManager.spawnHardwareVM(platformConfig);
+            return await deviceManager.spawnHardwareVM(platform, targetProgram.program);
         } else{
-            return await deviceManager.connectToExistingMCUVM(platformConfig);
+            return await deviceManager.connectToExistingMCUVM(platform);
         }
     }
 }
