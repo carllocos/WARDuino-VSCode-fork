@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 // TODO validate configuration
 import { readFileSync } from 'fs';
 import { Breakpoint, BreakpointPolicy } from './State/Breakpoint';
-import { DeploymentMode, listAvailableBoards, BoardBaudRate, listAllFQBN, deploymentModeFromString } from 'wasmito';
+import { listAvailableBoards, BoardBaudRate, listAllFQBN, PlatformTarget, TargetLanguage} from 'wasmito';
 
 interface MockConfig {
     port: number;
@@ -397,15 +397,10 @@ export enum DebuggingMode {
     outOfThings =2,
 }
 
-const legacyTargetDeviceMapping= new Map<string, DeploymentMode>([
-    ['development', DeploymentMode.DevVM],
-    ['mcu', DeploymentMode.MCUVM],
-]);
-
 const debuggingModesMapping = new Map<string, DebuggingMode>([
-    ['remote-debugging', DebuggingMode.remoteDebugging],
+    ['remoteDebugging', DebuggingMode.remoteDebugging],
     ['edward', DebuggingMode.edward],
-    ['out-of-things', DebuggingMode.outOfThings],
+    ['outOfThings', DebuggingMode.outOfThings],
 ]);
 
 
@@ -496,10 +491,15 @@ export async function assertAndCreateUserMCUConnectionConfig(config: any): Promi
 
 }
 
-export interface UserRemoteDebuggingConfig {
-    program: string;
+export interface TargetProgram {
+    targetLanguage: TargetLanguage,
+    program: any,
+}
 
-    target: DeploymentMode;
+export interface UserRemoteDebuggingConfig {
+    program: TargetProgram,
+
+    target: PlatformTarget;
 
     deployOnStart?: boolean; // defaults true
     
@@ -510,25 +510,48 @@ export interface UserRemoteDebuggingConfig {
     mcuConfig?: UserMCUConnectionConfig;
 }
 
+function isTargetLanguage(target: string): target is TargetLanguage {
+    const found = Object.values(TargetLanguage).find((t)=>{
+        return t === target;
+    });
+    return found !== undefined;
+}
+
+export function assertAndCreateTargetProgram(targetProgram: any): TargetProgram {
+    if(typeof targetProgram !== 'object'){
+        throw new InvalidDebuggerConfiguration('TargetProgram expected to be an object');
+    }
+
+    const targetLanguage = targetProgram.targetLanguage;
+    if(!isTargetLanguage(targetLanguage)){
+        throw new InvalidDebuggerConfiguration('Valid TargetLanguage expected');
+    }
+
+    return {
+        targetLanguage,
+        program: targetProgram.program
+    };
+}
+
 export async function assertAndCreateUserRemoteDebuggingConfig(config: any): Promise<UserRemoteDebuggingConfig> {
 
     if(typeof config !== 'object'){
         throw new InvalidDebuggerConfiguration('UserRemoteDebuggingConfig expected to be an object');
     }
 
-    const program = config.program;
-    if(program === undefined || typeof program !== 'string') {
-        throw new InvalidDebuggerConfiguration(`program is mandatory and expected to be a string. Given ${typeof(program)}`);
+    let program = config.program;
+    if(program === undefined) {
+        throw new InvalidDebuggerConfiguration('program is mandatory');
     }
+    program = assertAndCreateTargetProgram(program);
 
     let target = config.target;
     if(target === undefined || typeof target !== 'string'){
         throw new InvalidDebuggerConfiguration(`target is mandatory and expected to be a string either. Given ${target}`);
     }
     else{
-        target = deploymentModeFromString(target);
-        if(target === undefined){
-            throw new InvalidDebuggerConfiguration(`target is expected to be one of the values: ${Object.values(DebuggingMode).join(', ')}`);
+        if(!isValidTargetPlatform(target)){
+            throw new InvalidDebuggerConfiguration(`target is expected to be one of the values: ${Object.values(PlatformTarget).join(', ')}`);
         }
     }
 
@@ -549,7 +572,7 @@ export async function assertAndCreateUserRemoteDebuggingConfig(config: any): Pro
     if(mcuConfig !== undefined){
         mcuConfig = await assertAndCreateUserMCUConnectionConfig(mcuConfig);
     }
-    if(target === DeploymentMode.MCUVM && mcuConfig === undefined){
+    if(target === PlatformTarget.Arduino && mcuConfig === undefined){
         throw new InvalidDebuggerConfiguration('mcuConfig is mandatory when targetting a mcu');
     }
 
@@ -563,9 +586,9 @@ export async function assertAndCreateUserRemoteDebuggingConfig(config: any): Pro
 }
 
 export interface UserEdwardDebuggingConfig {
-    programOnTarget: string,
+    program: TargetProgram,
 
-    target: DeploymentMode,
+    target: PlatformTarget,
     
     deployOnStart?: boolean; // defaults true
     
@@ -577,24 +600,31 @@ export interface UserEdwardDebuggingConfig {
     mcuConfig?: UserMCUConnectionConfig;
 }
 
+export function isValidTargetPlatform(target: string): target is PlatformTarget {
+    const found =  Object.values(PlatformTarget).find((t)=>{
+        return t === target;
+    });
+    return found !== undefined;
+}
+
 export async function assertAndCreateEdwardDebuggingConfig(config: any): Promise<UserEdwardDebuggingConfig> {
 
     if(typeof config !== 'object'){
         throw new InvalidDebuggerConfiguration('UserEdwardDebuggingConfig expected to be an object');
     }
 
-    const programOnTarget = config.programOnTarget;
-    if(programOnTarget === undefined || typeof programOnTarget !== 'string') {
-        throw new InvalidDebuggerConfiguration(`programOnTarget is mandatory and expected to be string Given ${typeof(programOnTarget)}`);
+    let program = config.program;
+    if(program === undefined) {
+        throw new InvalidDebuggerConfiguration('program is mandatory');
     }
+    program = assertAndCreateTargetProgram(program);
 
     let target = config.target;
     if(target === undefined || typeof target !== 'string'){
         throw new InvalidDebuggerConfiguration(`Target is mandatory and expected to be a string either. Given ${target}`);
     }
     else {
-        target = deploymentModeFromString(target);
-        if(target === undefined){
+        if(!isValidTargetPlatform(target)){
             throw new InvalidDebuggerConfiguration(`target is expected to be one of the values: ${Object.values(DebuggingMode).join(', ')}`);
         }
     }
@@ -622,12 +652,12 @@ export async function assertAndCreateEdwardDebuggingConfig(config: any): Promise
     if(mcuConfig !== undefined){
         mcuConfig = await assertAndCreateUserMCUConnectionConfig(mcuConfig);
     }
-    if(target === DeploymentMode.MCUVM && mcuConfig === undefined){
+    if(target === PlatformTarget.Arduino && mcuConfig === undefined){
         throw new InvalidDebuggerConfiguration('mcuConfig is mandatory when targetting a mcu');
     }
 
     return {
-        programOnTarget,
+        program,
         target,
         deployOnStart,
         toolPortExistingVM,
@@ -637,9 +667,9 @@ export async function assertAndCreateEdwardDebuggingConfig(config: any): Promise
 
 
 export interface UserOutOfThingsDebuggingConfig {
-    programOnTarget: string,
+    programOnTarget: TargetProgram,
 
-    target: DeploymentMode,
+    target: PlatformTarget,
     
     deployOnStart?: boolean; // defaults true
     
@@ -658,19 +688,19 @@ export async function assertAndCreateOutOfThingsDebuggingConfig(config: any): Pr
         throw new InvalidDebuggerConfiguration('UserOutOfThingsDebuggingConfig expected to be an object');
     }
 
-    const programOnTarget = config.programOnTarget;
-    if(programOnTarget === undefined || typeof programOnTarget !== 'string') {
-        throw new InvalidDebuggerConfiguration(`programOnTarget is mandatory and expected to be string Given ${typeof(programOnTarget)}`);
+    let programOnTarget = config.programOnTarget;
+    if(programOnTarget === undefined) {
+        throw new InvalidDebuggerConfiguration('programOnTarget is mandatory');
     }
+    programOnTarget = assertAndCreateTargetProgram(programOnTarget);
 
     let target = config.target;
     if(target === undefined || typeof target !== 'string'){
         throw new InvalidDebuggerConfiguration(`Target is mandatory and expected to be a string either. Given ${target}`);
     }
     else {
-        target = deploymentModeFromString(target);
-        if(target === undefined){
-            throw new InvalidDebuggerConfiguration(`target is expected to be one of the values: ${Object.values(DebuggingMode).join(', ')}`);
+        if(!isValidTargetPlatform(target)){
+            throw new InvalidDebuggerConfiguration(`target is expected to be one of the values: ${Object.values(PlatformTarget).join(', ')}`);
         }
     }
 
@@ -697,7 +727,7 @@ export async function assertAndCreateOutOfThingsDebuggingConfig(config: any): Pr
     if(mcuConfig !== undefined){
         mcuConfig = await assertAndCreateUserMCUConnectionConfig(mcuConfig);
     }
-    if(target === DeploymentMode.MCUVM && mcuConfig === undefined){
+    if(target === PlatformTarget.Arduino && mcuConfig === undefined){
         throw new InvalidDebuggerConfiguration('mcuConfig is mandatory when targetting a mcu');
     }
 
