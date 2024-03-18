@@ -109,7 +109,7 @@ export class DeviceItem extends vscode.TreeItem {
         view: vscode.TreeView<TreeItem>,
         treeItemCollapsibleState: TreeItemCollapsibleState = TreeItemCollapsibleState.None
     ) {
-        super(device.targetVM.platformConfig.deviceConfig.name, treeItemCollapsibleState);
+        super(device.targetVM.platform.config.deviceIdentity.name, treeItemCollapsibleState);
         this.device = device;
         this.view = view;
         this.selected  = false;

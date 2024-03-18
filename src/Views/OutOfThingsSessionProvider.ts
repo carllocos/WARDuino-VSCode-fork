@@ -96,7 +96,7 @@ export class OutOfThingsSessionItem extends vscode.TreeItem {
     public handledBy(dbg: RemoteDebuggerBackend): void{
         this._handledBy = dbg;
         this.contextValue =  SessionContext.none;
-        this.label = `${this.label} (${this._handledBy.targetVM.platformConfig.deviceConfig.name})`;
+        this.label = `${this.label} (${this._handledBy.targetVM.platform.config.deviceIdentity.name})`;
         this.command = undefined;
     }
 
