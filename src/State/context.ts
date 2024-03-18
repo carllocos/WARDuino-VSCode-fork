@@ -317,8 +317,8 @@ export class Context {
         return this._events;
     }
 
-    set events(ev: WASM.Event[])  {
-        this._events = new Events(ev, this.sourceMap);
+    set events(ev: Events)  {
+        this._events = ev;
     }
 
 
