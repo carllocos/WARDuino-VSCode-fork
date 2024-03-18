@@ -314,7 +314,6 @@
     "chai": "^4.3.6",
     "ieee754": "^1.2.1",
     "mqtt": "^4.3.7",
-    "source-map": "^0.7.4",
     "ts-retry-promise": "^0.7.0",
     "wasmito": "file:wasmito-1.0.0.tgz"
   }
