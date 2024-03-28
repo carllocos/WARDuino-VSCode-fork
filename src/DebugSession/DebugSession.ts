@@ -279,7 +279,7 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
     }
 
     private createSource(filePath: string): Source {
-        return new Source(basename(filePath), this.convertDebuggerPathToClient(filePath), undefined, undefined, 'mock-adapter-data');
+        return new Source(filePath, this.convertDebuggerPathToClient(filePath), undefined, undefined, 'mock-adapter-data');
     }
 
     protected async nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): Promise<void> {
