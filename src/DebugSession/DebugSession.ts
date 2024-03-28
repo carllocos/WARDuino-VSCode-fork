@@ -217,7 +217,7 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
             return;
         }
 
-        let vars: VariableInfo[]=[];
+        let vars: any[]=[];
         switch(this.variableHandles.get(args.variablesReference)){
             case 'locals':
                 vars = frame.locals;
