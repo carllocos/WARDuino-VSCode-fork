@@ -144,9 +144,9 @@ export class Callstack {
             const frame = callstack[index];
             frms.push(new CallstackFrame(frame, sourceMap, frameWasmAddress, stack));
 
-            const prevSourceCodeLocation = this.sourceMap.getPrevSourceCodeMappingFromAddress(frame.ra);
             if(index > 0){
                 // no need to compute this for frame index 0
+                const prevSourceCodeLocation = this.getPreviousSourceCodeMapping(frame.ra);
                 frameWasmAddress = prevSourceCodeLocation === undefined ? frame.ra : prevSourceCodeLocation.address;
             }
         }
@@ -211,6 +211,31 @@ export class Callstack {
         // }
         // return this.frames[this.frames.length - 1];
         throw Error('tODO');
+    }
+
+    private getPreviousSourceCodeMapping(wasmAddr: number): SourceCodeMapping | undefined{
+        const func = this.sourceMap.wasm.functions.find((func: WASMFunction) => {
+            return func.startAddress <= wasmAddr && wasmAddr <= func.endAddress;
+        });
+
+        if (func === undefined) {
+            return undefined;
+        }
+        const instructions = func.allInstructions;
+        let idxPrevLocation = -1;
+        for (let index = 0; index < instructions.length; index++) {
+            const inst = instructions[index];
+            if (inst.startAddress === wasmAddr) {
+                idxPrevLocation = index - 1;
+                break;
+            }
+        }
+
+        if (idxPrevLocation < 0) {
+            return undefined;
+        }
+
+        return this.sourceMap.getOriginalPositionFor(instructions[idxPrevLocation].startAddress!);
     }
 }
 
