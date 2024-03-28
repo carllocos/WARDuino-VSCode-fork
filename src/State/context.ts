@@ -350,9 +350,10 @@ export class Context {
 
 
     public getCurrentSourceCodeLocation(): SourceCodeMapping | undefined {
-        if(this.wasmState.pc === undefined){
+        const pc = this.wasmState.pc;
+        if(pc === undefined){
             return undefined;
         }
-        return this.sourceMap.getSourceCodeMappingFromAddress(this.wasmState.pc!);
+        return this.sourceMap.getOriginalPositionFor(pc);
     }
 }
