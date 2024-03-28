@@ -1,5 +1,5 @@
 import { EventItem } from '../Views/EventsProvider';
-import { WASM, WASMValueIndexed, WasmState as WasmitoState, SourceMap, WASMFunction, VariableInfo as WasmitoVariableInfo, SourceCodeMapping} from 'wasmito';
+import { WASM, WASMValueIndexed, WasmState as WasmitoState, SourceMap, WASMFunction, VariableInfo as WasmitoVariableInfo, SourceCodeMapping, WasmGlobal, WasmLocal} from 'wasmito';
 
 /*
 * TODO move to toolkit 
@@ -16,7 +16,7 @@ export class CallstackFrame {
 
     // relevant only for function frames
     public readonly function?: WASMFunction;
-    private _locals: WasmitoVariableInfo[];
+    private _locals: WasmLocal[];
     private _arguments: WasmitoVariableInfo[];
 
     constructor(frame: WASM.Frame, sourceMap: SourceMap, wasmAddress: number, stack: StackValues){
@@ -51,7 +51,7 @@ export class CallstackFrame {
         return this.frame.idx;
     }
 
-    get locals(): WasmitoVariableInfo[] {
+    get locals(): WasmLocal[] {
        
         return this._locals;
     }
@@ -68,7 +68,7 @@ export class CallstackFrame {
 
     private getSourceCodeLocation(): SourceCodeMapping | undefined {
         if(this.pointsToSourceCodeLocation()){
-            return this.sourceMap.getSourceCodeMappingFromAddress(this.wasmAddress);
+            return this.sourceMap.getOriginalPositionFor(this.wasmAddress);
         }
         return undefined;
     }
@@ -90,7 +90,7 @@ export class CallstackFrame {
         return func;
     }
 
-    private getLocalsFromStack(stack: StackValues): WasmitoVariableInfo[] {
+    private getLocalsFromStack(stack: StackValues): WasmLocal[] {
         if(!this.isFunctionFrame()){
             return [];
         }
@@ -99,7 +99,7 @@ export class CallstackFrame {
         const locals = this.function!.locals.filter(l => l.index >= nrArgs);
         return locals.map(local => {
             const sv = stack.values[fp + local.index];
-            return { index: local.index, name: local.name, type: local.type, mutable: local.mutable, value: `${sv.value}` };
+            return { index: local.index, name: local.name, type: local.type, mutable: local.mutable, value: sv.value };
         });
     }
 
@@ -276,29 +276,29 @@ export class StackValues {
 
 export class Globals {
     private readonly sourceMap: SourceMap;
-    private readonly _globals: WasmitoVariableInfo[];
+    private readonly _globals: WasmGlobal[];
     constructor(globals: WASMValueIndexed[], sourceMap: SourceMap){
         this.sourceMap = sourceMap;
         this._globals = this.createGlobals(globals);
     }
 
 
-    get values(): WasmitoVariableInfo[]{
+    get values(): WasmGlobal[]{
         return this._globals;
     }
 
-    public getGlobalFromName(name: string): WasmitoVariableInfo | undefined {
+    public getGlobalFromName(name: string): WasmGlobal | undefined {
         return this._globals.find(g => g.name === name);
     }
 
 
-    private createGlobals(globals: WASMValueIndexed[]): WasmitoVariableInfo []{
+    private createGlobals(globals: WASMValueIndexed[]): WasmGlobal []{
         return globals.map(v =>{
-            const gb: WasmitoVariableInfo | undefined = this.sourceMap.getGlobalFromIndex(v.idx);
+            const gb: WasmGlobal | undefined = this.sourceMap.wasm.getGlobalFromIndex(v.idx);
             if(gb === undefined){
                 throw new Error(`failed to find global with id ${v.idx} in sourcemap`);
             }
-            gb.value = `${v.value}`;
+            gb.value = v.value;
             return gb;
         });
     }
