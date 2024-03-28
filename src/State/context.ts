@@ -7,15 +7,6 @@ import { WASM, WASMValueIndexed, WasmState as WasmitoState, SourceMap, WASMFunct
 
 
 export class CallstackFrame {
-    // interface Frame {
-    //     type: number;
-    //     fidx: string;
-    //     sp: number;
-    //     fp: number;
-    //     block_key: number;
-    //     ra: number;
-    //     idx: number;
-    // }
     private readonly sourceMap: SourceMap;
     private readonly frame: WASM.Frame;
     public readonly sourceCodeLocation?: SourceCodeMapping;
