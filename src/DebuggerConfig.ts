@@ -672,6 +672,7 @@ export interface UserOutOfThingsDebuggingConfig {
     target: PlatformTarget,
     
     deployOnStart?: boolean; // defaults true
+    pauseOnDeploy?: boolean // defaults true
     
     // config for dev
     toolPortExistingVM?: number;
@@ -711,6 +712,13 @@ export async function assertAndCreateOutOfThingsDebuggingConfig(config: any): Pr
     else if(deployOnStart === undefined){
         deployOnStart = true;
     }
+    let pauseOnDeploy = config.pauseOnDeploy;
+    if(pauseOnDeploy !== undefined && typeof pauseOnDeploy !== 'boolean'){
+        throw new InvalidDebuggerConfiguration('pauseOnDeploy is expected to be a boolean');
+    }
+    else if(pauseOnDeploy === undefined){
+        pauseOnDeploy = true;
+    }
 
 
     const toolPortExistingVM = config.toolPortExistingVM;
@@ -735,6 +743,7 @@ export async function assertAndCreateOutOfThingsDebuggingConfig(config: any): Pr
         programOnTarget,
         target,
         deployOnStart,
+        pauseOnDeploy,
         toolPortExistingVM,
         mcuConfig
     };

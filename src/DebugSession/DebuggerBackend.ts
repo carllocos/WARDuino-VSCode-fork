@@ -299,7 +299,7 @@ export class RemoteDebuggerBackend extends EventEmitter {
     }
 }
 
-export async function createTargetVM(deviceManager: DeviceManager, platformTarget: PlatformTarget,  deploy: boolean, targetProgram: TargetProgram,  existingToolPort: number | undefined, mcuConfig: UserMCUConnectionConfig | undefined): Promise<WARDuinoVM> 
+export async function createTargetVM(deviceManager: DeviceManager, platformTarget: PlatformTarget,  deploy: boolean, targetProgram: TargetProgram,  existingToolPort: number | undefined, mcuConfig: UserMCUConnectionConfig | undefined, pauseOnDeploy: boolean): Promise<WARDuinoVM> 
 {
     if(platformTarget === PlatformTarget.DevVM){
         const platform = await createDevPlatform({
@@ -308,6 +308,7 @@ export async function createTargetVM(deviceManager: DeviceManager, platformTarge
             },
             vmConfig: {
                 toolPort: existingToolPort,
+                pauseOnStart: pauseOnDeploy
             }
         });
         if(deploy){
@@ -333,7 +334,8 @@ export async function createTargetVM(deviceManager: DeviceManager, platformTarge
                     boardName: mcuConfig.boardName ?? '',
                 },
                 serialPort: mcuConfig.serialPort,
-                baudrate: mcuConfig.baudrate
+                baudrate: mcuConfig.baudrate,
+                pauseOnStart: pauseOnDeploy,
             },
         });
         if(deploy){
@@ -346,7 +348,8 @@ export async function createTargetVM(deviceManager: DeviceManager, platformTarge
 
 
 export async function setupForEdwardDebugging(devicesManager: DeviceManager, config: UserEdwardDebuggingConfig): Promise<RemoteDebuggerBackend>{
-    const targetVM = await createTargetVM(devicesManager, config.target, !!config.deployOnStart, config.program, config.toolPortExistingVM, config.mcuConfig);
+    const pauseOnDeploy = true;
+    const targetVM = await createTargetVM(devicesManager, config.target, !!config.deployOnStart, config.program, config.toolPortExistingVM, config.mcuConfig, pauseOnDeploy);
     let ooVM: OutOfPlaceVM | undefined;
     if(config.toolPortExistingVM){
         ooVM =  await devicesManager.setupAlreadySpawnedVMForOutOfPlaceVM(config.toolPortExistingVM, targetVM, config.serverPortForProxyCall, 10000);
@@ -363,7 +366,8 @@ export async function setupForEdwardDebugging(devicesManager: DeviceManager, con
 
 
 async function setupForOutOfThingsDebugging(devicesManager:DeviceManager, config: UserOutOfThingsDebuggingConfig): Promise<RemoteDebuggerBackend> {
-    const targetVM = await createTargetVM(devicesManager, config.target, !!config.deployOnStart, config.programOnTarget, config.toolPortExistingVM, config.mcuConfig);
+    const pauseOnDeploy = config.pauseOnDeploy ?? true;
+    const targetVM = await createTargetVM(devicesManager, config.target, !!config.deployOnStart, config.programOnTarget, config.toolPortExistingVM, config.mcuConfig, pauseOnDeploy);
     const monitor = devicesManager.createOutOfThingsMonitor(targetVM);
     const dbg = new RemoteDebuggerBackend(targetVM, DebuggingMode.outOfThings, {
         initialRunningState: RunningState.paused
@@ -373,7 +377,8 @@ async function setupForOutOfThingsDebugging(devicesManager:DeviceManager, config
 }
 
 async function setupForRemoteDebugging(devicesManager:DeviceManager, config: UserRemoteDebuggingConfig): Promise<RemoteDebuggerBackend> {
-    const targetVM = await createTargetVM(devicesManager, config.target, !!config.deployOnStart, config.program, config.toolPortExistingVM, config.mcuConfig);
+    const pauseOnDeploy = true;
+    const targetVM = await createTargetVM(devicesManager, config.target, !!config.deployOnStart, config.program, config.toolPortExistingVM, config.mcuConfig, pauseOnDeploy);
     const dbg= new RemoteDebuggerBackend(targetVM, DebuggingMode.remoteDebugging);
     if(!await targetVM.subscribeOnNewEvent(dbg.onNewEvent.bind(dbg))){
         throw new Error('Could not subscribe to on New IO Event');
