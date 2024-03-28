@@ -13,6 +13,8 @@ export class RemoteDebuggerViews extends RuntimeViewsRefresher {
     constructor(session: WARDuinoDebugSession, db: RemoteDebuggerBackend) {
         super(session, db);
         this.isHidden = true;
+        this.addViewProvider(STACK_PROVIDER);
+        this.addViewProvider(EVENTS_PROVIDER);
     }
 
 
