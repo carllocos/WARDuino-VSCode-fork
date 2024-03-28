@@ -261,8 +261,9 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
                     columnEnd: 0,
                 };
             const name = (frame.function === undefined) ? '<anonymous>' : frame.function.name;
+            const src = frame.sourceCodeLocation === undefined ? undefined : this.createSource(frame.sourceCodeLocation.source);
             const f = new StackFrame(frame.index, name,
-                this.createSource(context.sourceMap.sourceCodeFilePath),
+                src,
                 // TODO: figure out why convertDebggerLineToClient has line Starts at one setDebuggerStartAt1(true)
                 this.convertDebuggerLineToClient(sourceCodeLocation.linenr),
                 this.convertDebuggerColumnToClient(sourceCodeLocation.columnStart - 1));
