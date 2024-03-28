@@ -18,7 +18,7 @@ export class ProxyCallsProvider implements vscode.TreeDataProvider<ProxyCallItem
     
     setCurrentDBG(dbg: RemoteDebuggerBackend): void {
         this.dbg = dbg;
-        this.items = dbg.getSourceMap().getEnvironmentFunctions().map(f =>{
+        this.items = dbg.getSourceMap().wasm.imports.map(f =>{
             return new ProxyCallItem(dbg, f, this);
         });
     }
