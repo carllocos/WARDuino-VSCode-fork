@@ -341,7 +341,7 @@ export async function createTargetVM(deviceManager: DeviceManager, platformTarge
         if(deploy){
             return await deviceManager.spawnHardwareVM(platform, targetProgram.program);
         } else{
-            return await deviceManager.connectToExistingMCUVM(platform);
+            return await deviceManager.connectToExistingMCUVM(platform, targetProgram.program);
         }
     }
 }
