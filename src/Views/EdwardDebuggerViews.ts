@@ -8,14 +8,15 @@ import { StoppedEvent } from 'vscode-debugadapter';
 import {EVENTSVIEWCONFIG, EVENTS_PROVIDER, STACKVIEWCONFIG } from './ViewsConstants';
 
 export class EdwardDebuggerViews extends RuntimeViewsRefresher {
+    private isVisible: boolean;
     constructor(session: WARDuinoDebugSession, db: RemoteDebuggerBackend) {
         super(session, db);
+        this.isVisible = false;
     }
 
 
     hideViews(): void {
-        vscode.commands.executeCommand('setContext',STACKVIEWCONFIG.when , false);
-        vscode.commands.executeCommand('setContext',EVENTSVIEWCONFIG.when , false);
+        this.viewsVisibility(false);
     }
 
     close(): void {
@@ -24,8 +25,7 @@ export class EdwardDebuggerViews extends RuntimeViewsRefresher {
     }
 
     showViews(): void {
-        vscode.commands.executeCommand('setContext',STACKVIEWCONFIG.when , true);
-        vscode.commands.executeCommand('setContext',EVENTSVIEWCONFIG.when , true);
+        this.viewsVisibility(true);
     }
 
     registerViewCallbacks(): void {
@@ -45,5 +45,14 @@ export class EdwardDebuggerViews extends RuntimeViewsRefresher {
         this.dbg.on(BackendDebuggerEvent.EventHandled, (ev: WASM.Event, allEvents: WASM.Event[]) => {
             EVENTS_PROVIDER.refreshEvents(allEvents);
         });
+    }
+
+    private viewsVisibility(visible: boolean): void{
+        vscode.commands.executeCommand('setContext',STACKVIEWCONFIG.when , visible);
+        vscode.commands.executeCommand('setContext',EVENTSVIEWCONFIG.when , visible);
+        this.isVisible = visible;
+        if(visible){
+            STACK_PROVIDER.setCurrentDBG(this.dbg);
+        }
     }
 }
