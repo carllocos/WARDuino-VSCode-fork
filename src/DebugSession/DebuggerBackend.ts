@@ -222,7 +222,8 @@ export class RemoteDebuggerBackend extends EventEmitter {
         }
 
         const sm = this.targetVM.sourceMap;
-        const source = new Source(sm.sourceCodeFileName, sm.sourceCodeFilePath);
+        console.warn('addBreakpoint fix to use right sourcename');
+        const source = new Source(sm.sourcesNames[0], sm.sources[0]);
         this.breakpoints.push(new BreakpointBackend(bp, source));
         return true;
     }

@@ -300,7 +300,8 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
         }
 
         const sm = this.selectedDebugBackend.getSourceMap();
-        const filename = sm.sourceCodeFileName;
+        console.warn('fixe setMissedBreakpoints to use right sourceNames');
+        const filename = sm.sourcesNames[0];
         const bps = this.startingBPs.filter(bp=>bp.source.name === filename).map(bp=>bp.linenr);
         this.startingBPs = this.startingBPs.filter(bp=>bp.source.name !== filename);
         await this.selectedDebugBackend.setBreakPoints(bps);
