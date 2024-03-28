@@ -5,13 +5,15 @@ import { WARDuinoDebugSession } from '../DebugSession/DebugSession';
 import { Context} from '../State/context';
 import {SourceCodeMapping, WASM} from 'wasmito';
 import { StoppedEvent } from 'vscode-debugadapter';
-import {EVENTSVIEWCONFIG, EVENTS_PROVIDER, STACKVIEWCONFIG } from './ViewsConstants';
+import {EVENTSVIEWCONFIG, EVENTS_PROVIDER, STACKVIEWCONFIG, STACK_PROVIDER } from './ViewsConstants';
 
 export class EdwardDebuggerViews extends RuntimeViewsRefresher {
     private isVisible: boolean;
     constructor(session: WARDuinoDebugSession, db: RemoteDebuggerBackend) {
         super(session, db);
         this.isVisible = false;
+        this.addViewProvider(STACK_PROVIDER);
+        this.addViewProvider(EVENTS_PROVIDER);
     }
 
 
