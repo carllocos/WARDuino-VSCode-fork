@@ -254,21 +254,26 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
         }
         const callstack = context.callstack.frames().reverse();
         const frames = Array.from(callstack, (frame) => {
-            const sourceCodeLocation = frame.sourceCodeLocation ??
-                {
-                    linenr: 1, // vscode default line nr starts at 0 so 1 for substraction below
-                    columnStart: 0,
-                    columnEnd: 0,
-                };
+            const sourceCodeLocation = frame.sourceCodeLocation;
+            let lineNr: undefined | number;
+            let colstart: undefined | number;
+            let colEnd: undefined | number;
+            if(sourceCodeLocation !== undefined){
+                // TODO: figure out why convertDebggerLineToClient has line Starts at one setDebuggerStartAt1(true)
+                lineNr = this.convertDebuggerLineToClient(sourceCodeLocation.linenr),
+                colstart = this.convertDebuggerColumnToClient(sourceCodeLocation.columnStart - 1);
+                colEnd = this.convertDebuggerColumnToClient(sourceCodeLocation.columnEnd - 1);
+            }
             const name = (frame.function === undefined) ? '<anonymous>' : frame.function.name;
             const src = frame.sourceCodeLocation === undefined ? undefined : this.createSource(frame.sourceCodeLocation.source);
             const f = new StackFrame(frame.index, name,
                 src,
-                // TODO: figure out why convertDebggerLineToClient has line Starts at one setDebuggerStartAt1(true)
-                this.convertDebuggerLineToClient(sourceCodeLocation.linenr),
-                this.convertDebuggerColumnToClient(sourceCodeLocation.columnStart - 1));
-
-            f.endColumn = this.convertDebuggerColumnToClient(sourceCodeLocation.columnEnd - 1);
+                lineNr,
+                colstart
+            );
+            if(colEnd !== undefined){
+                f.endColumn = colEnd;
+            }
             return f;
         });
         response.body = {
