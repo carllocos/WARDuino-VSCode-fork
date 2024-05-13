@@ -1,4 +1,4 @@
-import { DeviceManager, SourceCodeLocation, SourceMap, StateRequest, WARDuinoVM, WasmState, Platform, BoardFQBN, BoardBaudRate, VMConfigArgs, WASM, Breakpoint as WasmBreakpoint, OutOfPlaceVM, OutOfThingsMonitor, InputMode, ArduinoBoardBuilder, createArduinoPlatform, PlatformTarget, createDevPlatform} from 'wasmito';
+import { DeviceManager, SourceCodeLocation, SourceMap, StateRequest, WARDuinoVM, WasmState, Platform, BoardFQBN, BoardBaudRate, VMConfigArgs, WASM, Breakpoint as WasmBreakpoint, OutOfPlaceVM, OutOfThingsMonitor, InputMode, ArduinoBoardBuilder, createArduinoPlatform, PlatformTarget, createDevPlatform, PauseVMHook, InspectStateHook, getFileName} from 'wasmito';
 import {EventEmitter} from 'events';
 import { Context, Events } from '../State/context';
 import { DebuggingMode, TargetProgram, UserDeviceConfig, UserEdwardDebuggingConfig, UserMCUConnectionConfig, UserOutOfThingsDebuggingConfig, UserRemoteDebuggingConfig } from '../DebuggerConfig';
@@ -223,7 +223,7 @@ export class RemoteDebuggerBackend extends EventEmitter {
 
         const sm = this.targetVM.sourceMap;
         console.warn('addBreakpoint fix to use right sourcename');
-        const source = new Source(sm.sourcesNames[0], sm.sources[0]);
+        const source = new Source(sm.sources.map(getFileName)[0], sm.sources[0]);
         this.breakpoints.push(new BreakpointBackend(bp, source));
         return true;
     }

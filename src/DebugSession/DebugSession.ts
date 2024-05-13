@@ -28,7 +28,7 @@ import {BreakpointPolicy} from '../State/Breakpoint';
 import {DebuggingTimelineProvider, TimelineItem} from '../Views/DebuggingTimelineProvider';
 import {OldRuntimeState} from '../State/RuntimeState';
 import {CallstackFrame} from '../State/context';
-import {DeviceManager, VariableInfo} from 'wasmito';
+import {DeviceManager, getFileName} from 'wasmito';
 import { RemoteDebuggerBackend, createDebuggerBackend } from './DebuggerBackend';
 import { ViewsManager } from '../Views/ViewsManager';
 
@@ -306,7 +306,7 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
 
         const sm = this.selectedDebugBackend.getSourceMap();
         console.warn('fixe setMissedBreakpoints to use right sourceNames');
-        const filename = sm.sourcesNames[0];
+        const filename = sm.sources.map(getFileName)[0];
         const bps = this.startingBPs.filter(bp=>bp.source.name === filename).map(bp=>bp.linenr);
         this.startingBPs = this.startingBPs.filter(bp=>bp.source.name !== filename);
         await this.selectedDebugBackend.setBreakPoints(bps);
