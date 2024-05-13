@@ -175,6 +175,49 @@ export class RemoteDebuggerBackend extends EventEmitter {
         this._runningState = RunningState.paused;
     }
 
+    async stepOver(timeout?: number): Promise<void> {
+        const sl = this.context.getCurrentSourceCodeLocation();
+        if(sl === undefined){
+            return await this.step(timeout);
+        }
+        return await this.step(timeout);
+        // const locations = this.targetVM.sourceMap.nextSourceCodeLocation(sl.source, sl.linenr, sl.columnStart);
+        // if(locations.length === 0){
+        //     return await this.step(timeout);
+        // }
+        // if(locations.length > 1){
+        //     throw new Error('Handle multiple locations');
+        // }
+
+        // const sm = locations[0];
+        // const pauseHook = new PauseVMHook().scheduleOnce();
+        // const added = await this.targetVM.addHookBefore({
+        //     linenr: sm.linenr,
+        //     columnStart: sm.columnStart
+        // }, pauseHook);
+        // if(!added){
+        //     throw new Error(`Failed to add pauseHook on linenr=${sm.linenr} and colStart=${sm.columnStart}`);
+        // }
+
+        // const sreq = new StateRequest();
+        // sreq.includePC();
+        // const stateHook = new InspectStateHook(sreq);
+        // stateHook.scheduleOnce();
+        // const addedStateHook = await this.targetVM.addHookBefore({
+        //     linenr: sm.linenr,
+        //     columnStart: sm.columnStart
+        // }, stateHook);
+        // if(!addedStateHook){
+        //     throw new Error(`Failed to add pauseHook on linenr=${sm.linenr} and colStart=${sm.columnStart}`);
+        // }
+        // return new Promise((res, rej)=>{
+        //     stateHook.subscribe((s: WasmState)=>{
+        //         this.refreshState().then(res).catch(rej);
+        //     });
+        //     this.targetVM.run(timeout).catch(rej);
+        // });
+    }
+
     async step(timeout?: number): Promise<void> {
         await this.targetVM.step(timeout);
         await this.refreshState();
