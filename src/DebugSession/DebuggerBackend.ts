@@ -318,7 +318,7 @@ export async function createTargetVM(deviceManager: DeviceManager, platformTarge
             throw new Error('existingToolPort is mandatory when connecting to an already deployed DevVM');
         }
         else{
-            return await deviceManager.connectToExistingDevVM(platform, 3000);
+            return await deviceManager.connectToExistingDevVM(platform, targetProgram.program, 3000);
         }
     }
     else{
