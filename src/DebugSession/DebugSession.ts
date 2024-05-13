@@ -288,8 +288,14 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
         return new Source(filePath, this.convertDebuggerPathToClient(filePath), undefined, undefined, 'mock-adapter-data');
     }
 
-    protected async nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): Promise<void> {
+    protected async stepInRequest(response: DebugProtocol.StepInResponse, args: DebugProtocol.StepInArguments, request?: DebugProtocol.Request | undefined): Promise<void> {
         await this.selectedDebugBackend?.step(10000);
+        this.sendResponse(response);
+        this.sendEvent(new StoppedEvent('step', this.THREAD_ID));
+    }
+
+    protected async nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): Promise<void> {
+        await this.selectedDebugBackend?.stepOver(10000);
         this.sendResponse(response);
         this.sendEvent(new StoppedEvent('step', this.THREAD_ID));
     }
