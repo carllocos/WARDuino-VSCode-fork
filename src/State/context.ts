@@ -1,5 +1,5 @@
 import { EventItem } from '../Views/EventsProvider';
-import { WASM, WASMValueIndexed, WasmState as WasmitoState, SourceMap, WASMFunction, VariableInfo as WasmitoVariableInfo, SourceCodeMapping, WasmGlobal, WasmLocal} from 'wasmito';
+import { WASM, WASMValueIndexed, WasmState as WasmitoState, SourceMap, WASMFunction, VariableInfo as WasmitoVariableInfo, WasmGlobal, WasmLocal, SourceCodeLocation, SourceCodeMapping, mappingItemToSourceCodeMapping} from 'wasmito';
 
 /*
 * TODO move to toolkit 
@@ -68,7 +68,12 @@ export class CallstackFrame {
 
     private getSourceCodeLocation(): SourceCodeMapping | undefined {
         if(this.pointsToSourceCodeLocation()){
-            return this.sourceMap.getOriginalPositionFor(this.wasmAddress);
+            const m = this.sourceMap.getOriginalPositionFor(this.wasmAddress);
+            if(m.length >0 ){
+                const r = m[0];
+                // console.warn(`Frame ${this.frame.idx} SourceLocation {source:${r.source}, originalLine:${r.originalLine}, originalCol: ${r.originalColumn},generatedCol: ${r.generatedColumn}, name: ${r.name}}`);
+                return mappingItemToSourceCodeMapping(r);
+            }
         }
         return undefined;
     }
@@ -325,6 +330,12 @@ export class Context {
         if(pc === undefined){
             return undefined;
         }
-        return this.sourceMap.getOriginalPositionFor(pc);
+        const loc = this.sourceMap.getOriginalPositionFor(pc);
+        if(loc.length > 0){
+            const r = loc[0];
+            // console.warn(`Current PC=SourceLocation {source:${r.source}, originalLine:${r.originalLine}, originalCol: ${r.originalColumn},generatedCol: ${r.generatedColumn}, name: ${r.name}}`);
+            return mappingItemToSourceCodeMapping(r);
+        }
+        return undefined;
     }
 }
