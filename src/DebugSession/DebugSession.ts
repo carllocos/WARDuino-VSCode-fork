@@ -174,7 +174,7 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
                 return {
                     verified: true,
                     line: bp.sourceCodeLocation.linenr,
-                    column: bp.sourceCodeLocation.columnEnd,
+                    column: bp.sourceCodeLocation.columnStart,
                     endLine: bp.sourceCodeLocation.columnEnd,
                     source: bp.source,
                 };
