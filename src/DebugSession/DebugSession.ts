@@ -28,7 +28,7 @@ import {BreakpointPolicy} from '../State/Breakpoint';
 import {DebuggingTimelineProvider, TimelineItem} from '../Views/DebuggingTimelineProvider';
 import {OldRuntimeState} from '../State/RuntimeState';
 import {CallstackFrame} from '../State/context';
-import {DeviceManager, getFileName} from 'wasmito';
+import {DeviceManager, SourceCodeLocation, pathsEqual} from 'wasmito';
 import { RemoteDebuggerBackend, createDebuggerBackend } from './DebuggerBackend';
 import { ViewsManager } from '../Views/ViewsManager';
 
@@ -162,7 +162,14 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
             }
         }
         else {
-            await this.selectedDebugBackend!.setBreakPoints(args.lines ?? []);
+            const bpsToSet: SourceCodeLocation[] = args.lines?.map((linenr)=>{
+                return {
+                    source: args.source.path ?? '',
+                    linenr: linenr,
+                };
+            }) ?? [];
+
+            await this.selectedDebugBackend!.setBreakPoints(bpsToSet);
             const bps = this.selectedDebugBackend!.breakpoints.map( bp =>{
                 return {
                     verified: true,
@@ -311,11 +318,30 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
         }
 
         const sm = this.selectedDebugBackend.getSourceMap();
-        console.warn('fixe setMissedBreakpoints to use right sourceNames');
-        const filename = sm.sources.map(getFileName)[0];
-        const bps = this.startingBPs.filter(bp=>bp.source.name === filename).map(bp=>bp.linenr);
-        this.startingBPs = this.startingBPs.filter(bp=>bp.source.name !== filename);
+        const bps = this.getStartingBreakpoints(sm.sources);
         await this.selectedDebugBackend.setBreakPoints(bps);
+    }
+
+    // TODO move the logic that determines if a bp should be added to toolkit
+    private getStartingBreakpoints(sources:string[]): SourceCodeLocation[]{
+        const newStartingBPs: OnStartBreakpoint[]=[];
+        const bps: OnStartBreakpoint[] = [];
+        for (let i  = 0;  i < this.startingBPs.length; ++i) {
+            const bp = this.startingBPs[i];
+            if(sources.find((s)=> pathsEqual(bp.source.path, s)) !== undefined){
+                bps.push(bp);
+            }
+            else{
+                newStartingBPs.push(bp);
+            }
+        }
+        this.startingBPs = newStartingBPs;
+        return bps.map((s)=>{
+            return {
+                source: s.source.path,
+                linenr: s.linenr
+            };
+        });
     }
 
     protected async launchRequest(response: DebugProtocol.LaunchResponse, args: any): Promise<void> {

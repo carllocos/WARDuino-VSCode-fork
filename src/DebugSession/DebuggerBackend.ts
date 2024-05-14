@@ -1,4 +1,4 @@
-import { DeviceManager, SourceCodeLocation, SourceMap, StateRequest, WARDuinoVM, WasmState, Platform, BoardFQBN, BoardBaudRate, VMConfigArgs, WASM, Breakpoint as WasmBreakpoint, OutOfPlaceVM, OutOfThingsMonitor, InputMode, ArduinoBoardBuilder, createArduinoPlatform, PlatformTarget, createDevPlatform, PauseVMHook, InspectStateHook, getFileName} from 'wasmito';
+import { DeviceManager, SourceCodeLocation, SourceMap, StateRequest, WARDuinoVM, WasmState, Platform, BoardFQBN, BoardBaudRate, VMConfigArgs, WASM, Breakpoint as WasmBreakpoint, OutOfPlaceVM, OutOfThingsMonitor, InputMode, ArduinoBoardBuilder, createArduinoPlatform, PlatformTarget, createDevPlatform, getFileName, equalSourceCodeLocations} from 'wasmito';
 import {EventEmitter} from 'events';
 import { Context, Events } from '../State/context';
 import { DebuggingMode, TargetProgram, UserDeviceConfig, UserEdwardDebuggingConfig, UserMCUConnectionConfig, UserOutOfThingsDebuggingConfig, UserRemoteDebuggingConfig } from '../DebuggerConfig';
@@ -313,15 +313,21 @@ export class RemoteDebuggerBackend extends EventEmitter {
         return this.context;
     }
 
-    async setBreakPoints(bpsToSet: number[]): Promise<boolean> {
+    async setBreakPoints(bpsToSet: SourceCodeLocation[]): Promise<boolean> {
 
-        // Delete removed breakpoints
-        const bpsToDelete = this.breakpoints
-            .filter(bp => !bpsToSet.includes(bp.linenr));
+        // Find breakpoints that need to be removed 
+        const bpsToDelete:SourceCodeLocation[]  = [];
+        for(let bp of this.breakpoints){
+            const found = bpsToSet.find((b)=>{
+                return equalSourceCodeLocations(b, bp.sourceCodeLocation);
+            });
+            if(found === undefined){
+                bpsToDelete.push(bp.sourceCodeLocation);
+            }
+        }
         const deletedReplies: boolean[] = [];
         for (let i = 0; i < bpsToDelete.length; i++) {
-            deletedReplies.push(await this.removeBreakpoint({
-                linenr: bpsToDelete[i].linenr}));
+            deletedReplies.push(await this.removeBreakpoint(bpsToDelete[i]));
         }
         const allDeleted = deletedReplies.reduce((acc: boolean, v: boolean) => acc && v, true);
         if(!allDeleted){
@@ -329,14 +335,18 @@ export class RemoteDebuggerBackend extends EventEmitter {
         }
 
         // Keep breakpoints that need to be added
-
-        const bpsToAdd = bpsToSet.filter(linenr =>{
-            return this.breakpoints.find(bp => bp.linenr === linenr) === undefined;
-        });
+        const bpsToAdd: SourceCodeLocation[]=[];
+        for (let i = 0; i < bpsToSet.length; i++) {
+            const found = this.breakpoints.find((b)=>{
+                return equalSourceCodeLocations(b.sourceCodeLocation, bpsToSet[i]);
+            });
+            if(found === undefined){
+                bpsToAdd.push(bpsToSet[i]);
+            }
+        }
         const addedReplies: boolean[] = [];
         for (let i = 0; i < bpsToAdd.length; i++) {
-            addedReplies.push(await this.addBreakpoint({
-                linenr: bpsToAdd[i]}));
+            addedReplies.push(await this.addBreakpoint(bpsToAdd[i]));
         }
         const allAdded = addedReplies.reduce((acc: boolean, v: boolean) => acc && v, true);
         return allAdded;
