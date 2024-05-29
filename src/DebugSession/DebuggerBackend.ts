@@ -1,4 +1,4 @@
-import { DeviceManager, SourceCodeLocation, SourceMap, StateRequest, WARDuinoVM, WasmState, Platform, BoardFQBN, BoardBaudRate, VMConfigArgs, WASM, Breakpoint as WasmBreakpoint, OutOfPlaceVM, OutOfThingsMonitor, InputMode, ArduinoBoardBuilder, createArduinoPlatform, PlatformTarget, createDevPlatform, getFileName, equalSourceCodeLocations} from 'wasmito';
+import { DeviceManager, SourceCodeLocation, SourceMap, StateRequest, WARDuinoVM, WasmState, Platform, BoardFQBN, BoardBaudRate, VMConfigArgs, WASM, Breakpoint as WasmBreakpoint, OutOfPlaceVM, OutOfThingsMonitor, InputMode, ArduinoBoardBuilder, createArduinoPlatform, PlatformTarget, createDevPlatform, getFileName, equalSourceCodeLocations, LanguageAdaptor, DebugAgnosticOperations, sourceNodeFirstInstrStartAddr, HookOnWasmAddrRequest, InspectStateHook, SourceCFGNode, PauseVMHook} from 'wasmito';
 import {EventEmitter} from 'events';
 import { Context, Events } from '../State/context';
 import { DebuggingMode, TargetProgram, UserDeviceConfig, UserEdwardDebuggingConfig, UserMCUConnectionConfig, UserOutOfThingsDebuggingConfig, UserRemoteDebuggingConfig } from '../DebuggerConfig';
@@ -88,7 +88,7 @@ export class RemoteDebuggerBackend extends EventEmitter {
         super();
         this.targetVM = vm;
         this.debuggingMode = debuggingMode;
-        this.context = opts?.initialContext ?? new Context(new WasmState({}), this.targetVM.sourceMap);
+        this.context = opts?.initialContext ?? new Context(new WasmState({}), this.targetVM.languageAdaptor);
         this._breakpoints = [];
         this._runningState = opts?.initialRunningState ?? RunningState.paused;
         this._isOutOfThingsDBG = opts?.isOutOfThingsDebugger ?? false;
@@ -176,52 +176,39 @@ export class RemoteDebuggerBackend extends EventEmitter {
     }
 
     async stepOver(timeout?: number): Promise<void> {
-        const sl = this.context.getCurrentSourceCodeLocation();
-        if(sl === undefined){
-            return await this.step(timeout);
+        const loc = this.context.getCurrentSourceCodeLocation();
+        if(loc === undefined){
+            throw new Error('No location provided for stepOver operation');
         }
-        return await this.step(timeout);
-        // const locations = this.targetVM.sourceMap.nextSourceCodeLocation(sl.source, sl.linenr, sl.columnStart);
-        // if(locations.length === 0){
-        //     return await this.step(timeout);
-        // }
-        // if(locations.length > 1){
-        //     throw new Error('Handle multiple locations');
-        // }
 
-        // const sm = locations[0];
-        // const pauseHook = new PauseVMHook().scheduleOnce();
-        // const added = await this.targetVM.addHookBefore({
-        //     linenr: sm.linenr,
-        //     columnStart: sm.columnStart
-        // }, pauseHook);
-        // if(!added){
-        //     throw new Error(`Failed to add pauseHook on linenr=${sm.linenr} and colStart=${sm.columnStart}`);
-        // }
+        const nextPossibleSpots = DebugAgnosticOperations.stepOver(this.context.sourceMap.sourceCFG!, loc);
+        await this.registerLocsAndRun(nextPossibleSpots, timeout);
+    }
 
-        // const sreq = new StateRequest();
-        // sreq.includePC();
-        // const stateHook = new InspectStateHook(sreq);
-        // stateHook.scheduleOnce();
-        // const addedStateHook = await this.targetVM.addHookBefore({
-        //     linenr: sm.linenr,
-        //     columnStart: sm.columnStart
-        // }, stateHook);
-        // if(!addedStateHook){
-        //     throw new Error(`Failed to add pauseHook on linenr=${sm.linenr} and colStart=${sm.columnStart}`);
-        // }
-        // return new Promise((res, rej)=>{
-        //     stateHook.subscribe((s: WasmState)=>{
-        //         this.refreshState().then(res).catch(rej);
-        //     });
-        //     this.targetVM.run(timeout).catch(rej);
-        // });
+    private async registerLocsAndRun(bps: SourceCFGNode[], timeout?: number): Promise<boolean>{
+        for (const np of bps){
+            const stateHook = new InspectStateHook(this.stateToRequest());
+            stateHook.onSubscriptionData = this.onBreakpointReached.bind(this);
+            const addedInspectHook = await this.targetVM.addHookBeforeSrcNode(np, stateHook, timeout);
+            if(!addedInspectHook){
+                throw new Error(`Failed to add StateInspectHook for loc {line: ${np.node.startPosition.linenr}, colnr: ${np.node.startPosition.colnr}`);
+            }
+            const addedPauseHook = await this.targetVM.addHookBeforeSrcNode(np, new PauseVMHook(), timeout);
+            if(!addedPauseHook){
+                throw new Error(`Failed to add PauseHook for loc {line: ${np.node.startPosition.linenr}, colnr: ${np.node.startPosition.colnr}`);
+            }
+        }
+        return await this.run(timeout);
     }
 
     async step(timeout?: number): Promise<void> {
-        await this.targetVM.step(timeout);
-        await this.refreshState();
-        return;
+        const loc = this.context.getCurrentSourceCodeLocation();
+        if(loc === undefined){
+            throw new Error('No location provided for step operation');
+        }
+
+        const nextPossibleSpots = DebugAgnosticOperations.stepIn(this.context.sourceMap.sourceCFG!, loc);
+        await this.registerLocsAndRun(nextPossibleSpots, timeout);
     }
 
     uploadSourceCode(
@@ -235,14 +222,12 @@ export class RemoteDebuggerBackend extends EventEmitter {
         return this.targetVM.proxify(timeout);
     }
 
-    getSourceMap(): SourceMap {
-        return this.targetVM.sourceMap;
+    getLanguageAdaptor(): LanguageAdaptor {
+        return this.targetVM.languageAdaptor;
     }
 
-
     private onBreakpointReached(state: WasmState): void {
-        const sourceMap = this.targetVM.sourceMap;
-        this.context =  new Context(state, sourceMap);
+        this.context =  new Context(state, this.targetVM.languageAdaptor);
         this.emit(BackendDebuggerEvent.BreakpointReached, this.context, this.context.getCurrentSourceCodeLocation()!);
     }
 
@@ -298,10 +283,10 @@ export class RemoteDebuggerBackend extends EventEmitter {
     async refreshState(): Promise<void> {
         const state = this.stateToRequest();
         const response: WasmState = await this.targetVM.sendRequest(state);
-        const sourceMap = this.getSourceMap();
-        this.context =  new Context(response, sourceMap);
+        const langAdaptor = this.targetVM.languageAdaptor;
+        this.context =  new Context(response, langAdaptor);
         if(this.targetVM instanceof OutOfPlaceVM){
-            this.context.events = new Events(this.targetVM.eventsToHandle, this.getSourceMap());
+            this.context.events = new Events(this.targetVM.eventsToHandle, langAdaptor);
         }
         this.emit(BackendDebuggerEvent.StateUpdated, this.context);
     }

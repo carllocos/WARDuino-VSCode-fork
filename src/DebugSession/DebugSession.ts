@@ -261,18 +261,18 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
         }
         const callstack = context.callstack.frames().reverse();
         const frames = Array.from(callstack, (frame) => {
-            const sourceCodeLocation = frame.sourceCodeLocation;
+            const astMap = frame.sourceCodeLocation;
             let lineNr: undefined | number;
             let colstart: undefined | number;
             let colEnd: undefined | number;
-            if(sourceCodeLocation !== undefined){
+            if(astMap !== undefined){
                 // TODO: figure out why convertDebggerLineToClient has line Starts at one setDebuggerStartAt1(true)
-                lineNr = this.convertDebuggerLineToClient(sourceCodeLocation.linenr),
-                colstart = this.convertDebuggerColumnToClient(sourceCodeLocation.colnr - 1);
-                colEnd = this.convertDebuggerColumnToClient(sourceCodeLocation.colnr - 1);
+                lineNr = astMap.node.startPosition.linenr;
+                colstart = astMap.node.startPosition.colnr;
+                colEnd = astMap.node.endPosition.colnr;
             }
             const name = (frame.function === undefined) ? '<anonymous>' : frame.function.name;
-            const src = frame.sourceCodeLocation === undefined ? undefined : this.createSource(frame.sourceCodeLocation.source);
+            const src = frame.sourceCodeLocation === undefined ? undefined : this.createSource(frame.sourceCodeLocation.node.source);
             const f = new StackFrame(frame.index, name,
                 src,
                 lineNr,
@@ -317,7 +317,7 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
             return;
         }
 
-        const sm = this.selectedDebugBackend.getSourceMap();
+        const sm = this.selectedDebugBackend.getLanguageAdaptor().sourceMap;
         const bps = this.getStartingBreakpoints(sm.sources);
         await this.selectedDebugBackend.setBreakPoints(bps);
     }

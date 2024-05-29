@@ -1,5 +1,5 @@
 import { EventItem } from '../Views/EventsProvider';
-import { WASM, WASMValueIndexed, WasmState as WasmitoState, SourceMap, WASMFunction, VariableInfo as WasmitoVariableInfo, WasmGlobal, WasmLocal, SourceCodeLocation, SourceCodeMapping, mappingItemToSourceCodeMapping} from 'wasmito';
+import { WASM, WASMValueIndexed, WasmState as WasmitoState, LanguageAdaptor, WASMFunction, VariableInfo as WasmitoVariableInfo, WasmGlobal, WasmLocal, SourceCodeLocation, SourceCodeMapping, mappingItemToSourceCodeMapping, SourceCFGNode, sourceNodeLastInstructionStartAddress} from 'wasmito';
 
 /*
 * TODO move to toolkit 
@@ -7,9 +7,9 @@ import { WASM, WASMValueIndexed, WasmState as WasmitoState, SourceMap, WASMFunct
 
 
 export class CallstackFrame {
-    private readonly sourceMap: SourceMap;
+    private readonly sourceMap: LanguageAdaptor;
     private readonly frame: WASM.Frame;
-    public readonly sourceCodeLocation?: SourceCodeMapping;
+    public readonly sourceCodeLocation?: SourceCFGNode;
     private readonly frameType?: WASM.FrameType;
     private readonly wasmAddress: number;
     private readonly stack: StackValues;
@@ -19,7 +19,7 @@ export class CallstackFrame {
     private _locals: WasmLocal[];
     private _arguments: WasmitoVariableInfo[];
 
-    constructor(frame: WASM.Frame, sourceMap: SourceMap, wasmAddress: number, stack: StackValues){
+    constructor(frame: WASM.Frame, sourceMap: LanguageAdaptor, wasmAddress: number, stack: StackValues){
         this.frame = frame;
         this.sourceMap = sourceMap;
         this.wasmAddress = wasmAddress;
@@ -32,7 +32,7 @@ export class CallstackFrame {
         this._locals = this.getLocalsFromStack(stack);
         this._arguments = this.getArgumentsFromStack(stack);
     }
-    copy(args?: {frame?: WASM.Frame, sourceMap?: SourceMap, wasmAddress?: number, stack?: StackValues}): CallstackFrame {
+    copy(args?: {frame?: WASM.Frame, sourceMap?: LanguageAdaptor, wasmAddress?: number, stack?: StackValues}): CallstackFrame {
         const f = args?.frame === undefined ? this.frame : args.frame;
         const s = args?.sourceMap === undefined ? this.sourceMap : args.sourceMap;
         const w = args?.wasmAddress === undefined ? this.wasmAddress : args.wasmAddress;
@@ -66,14 +66,9 @@ export class CallstackFrame {
         return this.frameType !== WASM.FrameType.CALLBACK_GUARD && this.frameType !== WASM.FrameType.PROXY_GUARD;
     }
 
-    private getSourceCodeLocation(): SourceCodeMapping | undefined {
+    private getSourceCodeLocation(): SourceCFGNode | undefined {
         if(this.pointsToSourceCodeLocation()){
-            const m = this.sourceMap.getOriginalPositionFor(this.wasmAddress);
-            if(m.length >0 ){
-                const r = m[0];
-                // console.warn(`Frame ${this.frame.idx} SourceLocation {source:${r.source}, originalLine:${r.originalLine}, originalCol: ${r.originalColumn},generatedCol: ${r.generatedColumn}, name: ${r.name}}`);
-                return mappingItemToSourceCodeMapping(r);
-            }
+            return this.sourceMap.sourceCFG?.nodesFromAddress(this.wasmAddress);
         }
         return undefined;
     }
@@ -88,7 +83,7 @@ export class CallstackFrame {
             throw new Error(`Provided function id ${this.frame.fidx} could not be converted to a number`);
         }
 
-        const func =  this.sourceMap.getFunction(funcID);
+        const func =  this.sourceMap.sourceMap.getFunction(funcID);
         if(func === undefined){
             throw new Error('could not find function associated with Frame. Perhaps invalid frame argument or sourcemap');
         }
@@ -134,9 +129,9 @@ export class CallstackFrame {
 
 
 export class Callstack {
-    private readonly sourceMap: SourceMap;
+    private readonly sourceMap: LanguageAdaptor;
     private readonly _frames: CallstackFrame[];
-    constructor(callstack: WASM.Frame[], sourceMap: SourceMap, currentWasmAddress: number, stack: StackValues){
+    constructor(callstack: WASM.Frame[], sourceMap: LanguageAdaptor, currentWasmAddress: number, stack: StackValues){
         this.sourceMap = sourceMap;
 
         callstack = callstack.slice().sort((f1, f2) =>{
@@ -170,9 +165,10 @@ export class Callstack {
         let saveSourceCodeLoc = true;
         for (let i = this._frames.length - 1; i >= 0; i--) {
             const frame = this._frames[i];
+            const wasmAddr = latestSourceCodeLoc === undefined ? undefined : sourceNodeLastInstructionStartAddress(latestSourceCodeLoc);
             if(frame.isFunctionFrame()){
                 funcFrames.push(frame.copy({
-                    wasmAddress: latestSourceCodeLoc?.address
+                    wasmAddress: wasmAddr
                 }));
                 saveSourceCodeLoc = true;
                 latestSourceCodeLoc = undefined;
@@ -217,9 +213,9 @@ export class Callstack {
 
 
 export class Events {
-    private readonly sourceMap: SourceMap;
+    private readonly sourceMap: LanguageAdaptor;
     private readonly _events: WASM.Event[];
-    constructor(events: WASM.Event[], sourceMap: SourceMap){
+    constructor(events: WASM.Event[], sourceMap: LanguageAdaptor){
         this.sourceMap = sourceMap;
         this._events = events;
     }
@@ -234,9 +230,9 @@ export class Events {
 }
 
 export class StackValues {
-    private readonly sourceMap: SourceMap;
+    private readonly sourceMap: LanguageAdaptor;
     private readonly _stack: WASMValueIndexed[];
-    constructor(stack: WASMValueIndexed[], sourceMap: SourceMap){
+    constructor(stack: WASMValueIndexed[], sourceMap: LanguageAdaptor){
         this.sourceMap = sourceMap;
         this._stack = stack.slice().sort((v1, v2) =>{
             return v1.idx - v2.idx;
@@ -251,9 +247,9 @@ export class StackValues {
 
 
 export class Globals {
-    private readonly sourceMap: SourceMap;
+    private readonly sourceMap: LanguageAdaptor;
     private readonly _globals: WasmGlobal[];
-    constructor(globals: WASMValueIndexed[], sourceMap: SourceMap){
+    constructor(globals: WASMValueIndexed[], sourceMap: LanguageAdaptor){
         this.sourceMap = sourceMap;
         this._globals = this.createGlobals(globals);
     }
@@ -270,7 +266,7 @@ export class Globals {
 
     private createGlobals(globals: WASMValueIndexed[]): WasmGlobal []{
         return globals.map(v =>{
-            const gb: WasmGlobal | undefined = this.sourceMap.wasm.getGlobalFromIndex(v.idx);
+            const gb: WasmGlobal | undefined = this.sourceMap.sourceMap.wasm.getGlobalFromIndex(v.idx);
             if(gb === undefined){
                 throw new Error(`failed to find global with id ${v.idx} in sourcemap`);
             }
@@ -283,7 +279,7 @@ export class Globals {
 
 export class Context {
     private readonly wasmState: WasmitoState;
-    public readonly sourceMap: SourceMap;
+    public readonly sourceMap: LanguageAdaptor;
 
     private readonly _callstack: Callstack;
     private _events: Events;
@@ -291,7 +287,7 @@ export class Context {
     private readonly _globals: Globals;
 
 
-    constructor(state: WasmitoState, sourceMap: SourceMap) {
+    constructor(state: WasmitoState, sourceMap: LanguageAdaptor) {
         this.sourceMap = sourceMap;
         this.wasmState = state;
         const pc = state.pc === undefined ? 0: state.pc;
@@ -325,17 +321,11 @@ export class Context {
     }
 
 
-    public getCurrentSourceCodeLocation(): SourceCodeMapping | undefined {
+    public getCurrentSourceCodeLocation(): SourceCFGNode | undefined {
         const pc = this.wasmState.pc;
         if(pc === undefined){
             return undefined;
         }
-        const loc = this.sourceMap.getOriginalPositionFor(pc);
-        if(loc.length > 0){
-            const r = loc[0];
-            // console.warn(`Current PC=SourceLocation {source:${r.source}, originalLine:${r.originalLine}, originalCol: ${r.originalColumn},generatedCol: ${r.generatedColumn}, name: ${r.name}}`);
-            return mappingItemToSourceCodeMapping(r);
-        }
-        return undefined;
+        return this.sourceMap.sourceCFG?.nodesFromAddress(pc);
     }
 }
