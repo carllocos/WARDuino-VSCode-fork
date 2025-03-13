@@ -3,7 +3,7 @@ import { RuntimeViewsRefresher } from './ViewsRefresh';
 import { BackendDebuggerEvent, RemoteDebuggerBackend } from '../DebugSession/DebuggerBackend';
 import { WARDuinoDebugSession } from '../DebugSession/DebugSession';
 import { Context} from '../State/context';
-import {SourceCodeMapping, WASM} from 'wasmito';
+import {SourceCodeLocation, WASM} from 'wasmito';
 import { StoppedEvent } from 'vscode-debugadapter';
 import { EVENTSVIEWCONFIG, EVENTS_PROVIDER, STACKVIEWCONFIG, STACK_PROVIDER } from './ViewsConstants';
 
@@ -47,7 +47,7 @@ export class RemoteDebuggerViews extends RuntimeViewsRefresher {
                 EVENTS_PROVIDER.refreshEvents(context.events.values);
             }
         });
-        this.dbg.on(BackendDebuggerEvent.BreakpointReached, (context: Context, location: SourceCodeMapping)=>{
+        this.dbg.on(BackendDebuggerEvent.BreakpointReached, (context: Context, location: SourceCodeLocation)=>{
             if(this.isHidden){
                 console.warn('the view is hidden and the callbacks should not be called?');
             }else{

@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 // TODO validate configuration
 import { readFileSync } from 'fs';
 import { Breakpoint, BreakpointPolicy } from './State/Breakpoint';
-import { listAvailableBoards, BoardBaudRate, listAllFQBN, PlatformTarget, TargetLanguage} from 'wasmito';
+import { listAvailableBoards, BoardBaudRate, listAllFQBN, PlatformTarget, TargetLanguage, isFilePath} from 'wasmito';
 
 interface MockConfig {
     port: number;
@@ -498,13 +498,14 @@ export interface TargetProgram {
 
 export interface UserRemoteDebuggingConfig {
     program: TargetProgram,
+    sourceMappings: string,
 
     target: PlatformTarget;
 
     deployOnStart?: boolean; // defaults true
     
     // config for dev
-    toolPortExistingVM?: number; // used if deployOnStart is False
+    toolPort?: number; // used if deployOnStart is False
 
     // config for mcu
     mcuConfig?: UserMCUConnectionConfig;
@@ -533,6 +534,17 @@ export function assertAndCreateTargetProgram(targetProgram: any): TargetProgram 
     };
 }
 
+
+function assertSourceMappingsPath(sourcePath: any): string{
+    if(sourcePath === undefined || typeof sourcePath !== 'string') {
+        throw new InvalidDebuggerConfiguration('provided sourceMappingsPath is a mandatory string');
+    }
+    if(!isFilePath(sourcePath)){
+        throw new InvalidDebuggerConfiguration(`Provided sourceMappingsPath is not a valid path ${sourcePath}`);
+    }
+    return sourcePath;
+}
+
 export async function assertAndCreateUserRemoteDebuggingConfig(config: any): Promise<UserRemoteDebuggingConfig> {
 
     if(typeof config !== 'object'){
@@ -544,6 +556,8 @@ export async function assertAndCreateUserRemoteDebuggingConfig(config: any): Pro
         throw new InvalidDebuggerConfiguration('program is mandatory');
     }
     program = assertAndCreateTargetProgram(program);
+    
+    const sourceMappings = assertSourceMappingsPath(config.sourceMappings);
 
     let target = config.target;
     if(target === undefined || typeof target !== 'string'){
@@ -564,23 +578,24 @@ export async function assertAndCreateUserRemoteDebuggingConfig(config: any): Pro
     }
 
 
-    const toolPortExistingVM = config.toolPortExistingVM;
-    if(toolPortExistingVM !== undefined && typeof toolPortExistingVM !== 'number'){
-        throw new InvalidDebuggerConfiguration(`toolPortExistingVM is expected to be a number. Given ${toolPortExistingVM}`);
+    const toolPort = config.toolPort;
+    if(toolPort !== undefined && typeof toolPort !== 'number'){
+        throw new InvalidDebuggerConfiguration(`'toolPort' is expected to be a number. Given ${toolPort}`);
     }
     let mcuConfig = config.mcuConfig;
     if(mcuConfig !== undefined){
         mcuConfig = await assertAndCreateUserMCUConnectionConfig(mcuConfig);
     }
     if(target === PlatformTarget.Arduino && mcuConfig === undefined){
-        throw new InvalidDebuggerConfiguration('mcuConfig is mandatory when targetting a mcu');
+        throw new InvalidDebuggerConfiguration('mcuConfig is mandatory when targeting a mcu');
     }
 
     return {
         program,
+        sourceMappings,
         target,
         deployOnStart,
-        toolPortExistingVM,
+        toolPort: toolPort,
         mcuConfig
     };
 }
@@ -593,7 +608,7 @@ export interface UserEdwardDebuggingConfig {
     deployOnStart?: boolean; // defaults true
     
     // config for dev
-    toolPortExistingVM?: number;
+    toolPort?: number;
     serverPortForProxyCall?: number;
 
     // config for mcu
@@ -638,9 +653,9 @@ export async function assertAndCreateEdwardDebuggingConfig(config: any): Promise
     }
 
 
-    const toolPortExistingVM = config.toolPortExistingVM;
-    if(toolPortExistingVM !== undefined && typeof toolPortExistingVM !== 'number'){
-        throw new InvalidDebuggerConfiguration(`toolPortExistingVM is expected to be a number. Given ${toolPortExistingVM}`);
+    const toolPort = config.toolPort;
+    if(toolPort !== undefined && typeof toolPort !== 'number'){
+        throw new InvalidDebuggerConfiguration(`toolPort is expected to be a number. Given ${toolPort}`);
     }
 
     const serverPortForProxyCall = config.serverPortForProxyCall;
@@ -660,7 +675,7 @@ export async function assertAndCreateEdwardDebuggingConfig(config: any): Promise
         program,
         target,
         deployOnStart,
-        toolPortExistingVM,
+        toolPort,
         mcuConfig
     };
 }
@@ -675,7 +690,7 @@ export interface UserOutOfThingsDebuggingConfig {
     pauseOnDeploy?: boolean // defaults true
     
     // config for dev
-    toolPortExistingVM?: number;
+    toolPort?: number;
     serverPortForProxyCall?: number;
 
     // config for mcu
@@ -721,9 +736,9 @@ export async function assertAndCreateOutOfThingsDebuggingConfig(config: any): Pr
     }
 
 
-    const toolPortExistingVM = config.toolPortExistingVM;
-    if(toolPortExistingVM !== undefined && typeof toolPortExistingVM !== 'number'){
-        throw new InvalidDebuggerConfiguration(`toolPortExistingVM is expected to be a number. Given ${toolPortExistingVM}`);
+    const toolPort = config.toolPort;
+    if(toolPort !== undefined && typeof toolPort !== 'number'){
+        throw new InvalidDebuggerConfiguration(`toolPort is expected to be a number. Given ${toolPort}`);
     }
 
     const serverPortForProxyCall = config.serverPortForProxyCall;
@@ -744,7 +759,7 @@ export async function assertAndCreateOutOfThingsDebuggingConfig(config: any): Pr
         target,
         deployOnStart,
         pauseOnDeploy,
-        toolPortExistingVM,
+        toolPort,
         mcuConfig
     };
 }
@@ -773,7 +788,7 @@ export async function  assertAndCreateUserDeviceConfig(config: any): Promise<Use
     if(debug !== undefined && typeof debug !== 'boolean'){
         throw new InvalidDebuggerConfiguration(`debug is expected to be a boolean. Given ${debug}`);
     }else if(debug === undefined){
-        debug = false;
+        debug = true;
     }
 
     if(config.debuggingMode === undefined || typeof config.debuggingMode !== 'string'){
@@ -816,7 +831,6 @@ export async function createUserConfigFromLaunchArgs(config: any): Promise<UserC
     if(typeof config !== 'object'){
         throw new InvalidDebuggerConfiguration('UserConfig expected to be an object');
     }
-
     if(config.devices === undefined || !Array.isArray(config.devices)){
         throw new InvalidDebuggerConfiguration('devices is expected to be an array of UserDeviceConfig');
     }
@@ -824,7 +838,24 @@ export async function createUserConfigFromLaunchArgs(config: any): Promise<UserC
     const devices = [];
     let hasOneSetForDebug = false;
     for (let i = 0; i < config.devices.length; i++) {
-        const dc = await assertAndCreateUserDeviceConfig(config.devices[i]);
+        const dev = config.devices[i];
+        if(dev.debuggingMode === 'edward'){
+            const wasmPath = dev.wasmPath;
+            const mappingsJSON = dev.mappingsJSON;
+            dev.edwardDebuggingConfig = {
+                deployOnStart: dev.deployOnStart,
+                target:  PlatformTarget.Arduino,
+                program: {
+                    targetLanguage: 'wasm',
+                    program: {
+                        wasmPath: wasmPath,
+                        mappingsJSON: mappingsJSON,
+                    }
+                },
+                mcuConfig: dev.mcuConfig
+            };
+        }
+        const dc = await assertAndCreateUserDeviceConfig(dev);
         devices.push(dc);
         if(!!dc.debug){
             hasOneSetForDebug = true;

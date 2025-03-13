@@ -166,6 +166,10 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
                 return {
                     source: args.source.path ?? '',
                     linenr: linenr,
+                    // TODO fix
+                    colnr: -1,
+                    address: -1,
+                    name: ''
                 };
             }) ?? [];
 
@@ -174,8 +178,8 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
                 return {
                     verified: true,
                     line: bp.sourceCodeLocation.linenr,
-                    column: bp.sourceCodeLocation.columnStart,
-                    endLine: bp.sourceCodeLocation.columnEnd,
+                    column: bp.sourceCodeLocation.colnr,
+                    // endLine: bp.sourceCodeLocation,
                     source: bp.source,
                 };
 
@@ -267,12 +271,12 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
             let colEnd: undefined | number;
             if(astMap !== undefined){
                 // TODO: figure out why convertDebggerLineToClient has line Starts at one setDebuggerStartAt1(true)
-                lineNr = astMap.node.startPosition.linenr;
-                colstart = astMap.node.startPosition.colnr;
-                colEnd = astMap.node.endPosition.colnr;
+                lineNr = astMap.sourceLocation.linenr;
+                colstart = astMap.sourceLocation.colnr;
+                // colEnd = astMap.sourceLocation.colnr;
             }
             const name = (frame.function === undefined) ? '<anonymous>' : frame.function.name;
-            const src = frame.sourceCodeLocation === undefined ? undefined : this.createSource(frame.sourceCodeLocation.node.source);
+            const src = frame.sourceCodeLocation === undefined ? undefined : this.createSource(frame.sourceCodeLocation.sourceLocation.source);
             const f = new StackFrame(frame.index, name,
                 src,
                 lineNr,
@@ -299,11 +303,13 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
         await this.selectedDebugBackend?.step(10000);
         this.sendResponse(response);
         this.sendEvent(new StoppedEvent('step', this.THREAD_ID));
+        // this.sendEvent(new ContinuedEvent(this.THREAD_ID));
     }
 
     protected async nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): Promise<void> {
         await this.selectedDebugBackend?.stepOver(10000);
         this.sendResponse(response);
+        // this.sendEvent(new ContinuedEvent(this.THREAD_ID));
         this.sendEvent(new StoppedEvent('step', this.THREAD_ID));
     }
 
@@ -317,8 +323,8 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
             return;
         }
 
-        const sm = this.selectedDebugBackend.getLanguageAdaptor().sourceMap;
-        const bps = this.getStartingBreakpoints(sm.sources);
+        const cfgs =  this.selectedDebugBackend.getLanguageAdaptor().sourceCFGs;
+        const bps = this.getStartingBreakpoints(cfgs.sourceMap.sources);
         await this.selectedDebugBackend.setBreakPoints(bps);
     }
 
@@ -339,7 +345,11 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
         return bps.map((s)=>{
             return {
                 source: s.source.path,
-                linenr: s.linenr
+                linenr: s.linenr,
+                // TODO fix
+                colnr: -1,
+                name: '',
+                address: -1,
             };
         });
     }
@@ -386,6 +396,14 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
         this.sendResponse(response);
         this.sendEvent(new StoppedEvent('pause', this.THREAD_ID));
     }
+
+    protected async stepOutRequest(response: DebugProtocol.StepOutResponse, args: DebugProtocol.StepOutArguments, request?: DebugProtocol.Request): Promise<void> {
+        await this.selectedDebugBackend?.stepOut(10000);
+        this.sendResponse(response);
+        // this.sendEvent(new ContinuedEvent(this.THREAD_ID));
+        this.sendEvent(new StoppedEvent('step', this.THREAD_ID));
+    }
+
 
     protected async setVariableRequest(response: DebugProtocol.SetVariableResponse, args: DebugProtocol.SetVariableArguments): Promise<void> {
         // const v = this.variableHandles.get(args.variablesReference);
@@ -788,9 +806,9 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
     //     this.viewsRefresher.oldRefreshViews(runtimeState);
     // }
 
-    private onStepCompleted() {
-        this.sendEvent(new StoppedEvent('step', this.THREAD_ID));
-    }
+    // private onStepCompleted() {
+    //     this.sendEvent(new StoppedEvent('step', this.THREAD_ID));
+    // }
 
     private onRunning() {
         this.sendEvent(new ContinuedEvent(this.THREAD_ID));

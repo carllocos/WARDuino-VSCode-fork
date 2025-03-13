@@ -3,7 +3,7 @@ import { RuntimeViewsRefresher } from './ViewsRefresh';
 import { BackendDebuggerEvent, RemoteDebuggerBackend } from '../DebugSession/DebuggerBackend';
 import { WARDuinoDebugSession } from '../DebugSession/DebugSession';
 import { Context} from '../State/context';
-import {SourceCodeMapping, WASM} from 'wasmito';
+import {SourceCodeLocation, WASM} from 'wasmito';
 import { StoppedEvent } from 'vscode-debugadapter';
 import {EVENTSVIEWCONFIG, EVENTS_PROVIDER, STACKVIEWCONFIG, STACK_PROVIDER } from './ViewsConstants';
 
@@ -35,10 +35,10 @@ export class EdwardDebuggerViews extends RuntimeViewsRefresher {
             this.refreshViews(context);
             EVENTS_PROVIDER.refreshEvents(context.events.values);
         });
-        this.dbg.on(BackendDebuggerEvent.BreakpointReached, (context: Context, location: SourceCodeMapping)=>{
+        this.dbg.on(BackendDebuggerEvent.BreakpointReached, (context: Context, location: SourceCodeLocation)=>{
             this.session.sendEvent(new StoppedEvent('breakpoint', this.session.THREAD_ID));
             this.refreshViews(context);
-            EVENTS_PROVIDER.refreshEvents(context.events.values);
+            //EVENTS_PROVIDER.refreshEvents(context.events.values);
         });
 
         this.dbg.on(BackendDebuggerEvent.NewEventArrived, (ev: WASM.Event, allEvents: WASM.Event[]) => {

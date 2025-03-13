@@ -33,7 +33,7 @@ export class OutOfThingsSessionProvider implements vscode.TreeDataProvider<OutOf
         const sl = snapshot.getCurrentSourceCodeLocation();
         let label = 'undefined';
         if(sl !== undefined){
-            label = ` line nr ${sl.node.startPosition.linenr} col start ${sl.node.startPosition.colnr}`;
+            label = ` line nr ${sl.sourceLocation.linenr} col start ${sl.sourceLocation.colnr}`;
         }
         const idx = this.items.length;
         const item =  new OutOfThingsSessionItem(dbg, monitor, label, snapshot, idx);

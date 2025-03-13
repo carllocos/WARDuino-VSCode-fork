@@ -1,5 +1,5 @@
 import { EventItem } from '../Views/EventsProvider';
-import { WASM, WASMValueIndexed, WasmState as WasmitoState, LanguageAdaptor, WASMFunction, VariableInfo as WasmitoVariableInfo, WasmGlobal, WasmLocal, SourceCodeLocation, SourceCodeMapping, mappingItemToSourceCodeMapping, SourceCFGNode, sourceNodeLastInstructionStartAddress} from 'wasmito';
+import { WASM, WASMValueIndexed, WasmState as WasmitoState, LanguageAdaptor, WASMFunction, VariableInfo as WasmitoVariableInfo, WasmGlobal, WasmLocal, SourceCFGNode, sourceNodeLastInstructionStartAddress} from 'wasmito';
 
 /*
 * TODO move to toolkit 
@@ -279,7 +279,7 @@ export class Globals {
 
 export class Context {
     private readonly wasmState: WasmitoState;
-    public readonly sourceMap: LanguageAdaptor;
+    public readonly langAdaptors: LanguageAdaptor;
 
     private readonly _callstack: Callstack;
     private _events: Events;
@@ -287,14 +287,14 @@ export class Context {
     private readonly _globals: Globals;
 
 
-    constructor(state: WasmitoState, sourceMap: LanguageAdaptor) {
-        this.sourceMap = sourceMap;
+    constructor(state: WasmitoState, langAdaptor: LanguageAdaptor) {
+        this.langAdaptors = langAdaptor;
         this.wasmState = state;
         const pc = state.pc === undefined ? 0: state.pc;
-        this._stack = new StackValues(state.stack ?? [], sourceMap);
-        this._callstack = new Callstack(state.callstack ?? [], sourceMap, pc, this._stack);
-        this._events = new Events(state.events ?? [], sourceMap);
-        this._globals = new Globals(state.globals ?? [], sourceMap);
+        this._stack = new StackValues(state.stack ?? [], langAdaptor);
+        this._callstack = new Callstack(state.callstack ?? [], langAdaptor, pc, this._stack);
+        this._events = new Events(state.events ?? [], langAdaptor);
+        this._globals = new Globals(state.globals ?? [], langAdaptor);
     }
 
     get globals(): Globals {
@@ -320,12 +320,16 @@ export class Context {
         return this._stack;
     }
 
+    get pc() {
+        return this.wasmState.pc;
+    }
+
 
     public getCurrentSourceCodeLocation(): SourceCFGNode | undefined {
         const pc = this.wasmState.pc;
         if(pc === undefined){
             return undefined;
         }
-        return this.sourceMap.sourceCFG?.nodesFromAddress(pc);
+        return this.langAdaptors.sourceCFGs.nodesFromAddress(pc);
     }
 }

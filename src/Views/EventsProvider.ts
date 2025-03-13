@@ -43,11 +43,11 @@ export class EventsProvider implements vscode.TreeDataProvider<EventItem>, Runti
     }
 
     refreshView(runtimeState?: Context): void {
-        if (runtimeState !== undefined) {
-            this.events = runtimeState.events.values.map((ev: WASM.Event)=>{
-                return new EventItem(ev.topic, ev.payload);
-            });
-        }
+        // if (runtimeState !== undefined) {
+        //     this.events = runtimeState.events.values.map((ev: WASM.Event)=>{
+        //         return new EventItem(ev.topic, ev.payload);
+        //     });
+        // }
         this._onDidChangeTreeData.fire();
     }
 
