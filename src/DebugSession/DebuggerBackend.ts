@@ -490,6 +490,11 @@ export class RemoteDebuggerBackend extends EventEmitter {
             else{
                 return l1.colnr - l2.colnr;
             }});
+
+        if(sorted.length > 0){
+            console.warn('TODO: find the best node for breakpoint');
+            return [sorted[0]];
+        }
         return sorted;
     }
 
