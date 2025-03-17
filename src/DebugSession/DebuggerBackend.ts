@@ -541,6 +541,26 @@ export class RemoteDebuggerBackend extends EventEmitter {
         const allAdded = addedReplies.reduce((acc: boolean, v: boolean) => acc && v, true);
         return allAdded;
     }
+
+
+    /**
+     * When starting the debugger the Wasm execution may be at a location
+     * that does not correspond with any source code location.
+     * In this case, we need to advance the computation to the first reachable source code locations
+     * using the current Wasm PC.
+     * @returns 
+     */
+    async advanceToNextReachableSourceCodeLocation(timeout?: number): Promise<void>{
+        const sl = this.context.getCurrentSourceCodeLocation();
+        if(sl !== undefined){
+            // current location already points to a source code location
+            return;
+        }
+        // advance to the closest source code location
+        const addr = this.context.pc!;
+        const destinationNodes = this.getLanguageAdaptor().sourceCFGs.nextReachableSourceNodes(addr);
+        this.registerLocsAndRun(destinationNodes, timeout);
+    }
 }
 
 export async function createTargetVM(deviceManager: DeviceManager, platformTarget: PlatformTarget,  deploy: boolean, targetProgram: TargetProgram,  toolPort: number | undefined, mcuConfig: UserMCUConnectionConfig | undefined, pauseOnDeploy: boolean): Promise<WARDuinoVM> 

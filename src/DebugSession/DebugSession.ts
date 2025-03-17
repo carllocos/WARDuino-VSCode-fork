@@ -375,6 +375,7 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
             await this.setMissedBreakpoints();
             if(this.selectedDebugBackend.isPaused()){
                 await this.selectedDebugBackend.refreshState(); // TODO make more general
+                await this.selectedDebugBackend.advanceToNextReachableSourceCodeLocation(6000);
                 this.onPause();
             } else{
                 this.onRunning();
