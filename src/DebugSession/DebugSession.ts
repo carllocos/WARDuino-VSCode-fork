@@ -300,17 +300,19 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
     }
 
     protected async stepInRequest(response: DebugProtocol.StepInResponse, args: DebugProtocol.StepInArguments, request?: DebugProtocol.Request | undefined): Promise<void> {
+        // ContinuedEvent instead of the StoppedEvent is needed because that ensures
+        // that while stepping the user cannot apply other debugging operations
+        this.sendEvent(new ContinuedEvent(this.THREAD_ID));
         await this.selectedDebugBackend?.step(10000);
         this.sendResponse(response);
-        this.sendEvent(new StoppedEvent('step', this.THREAD_ID));
-        // this.sendEvent(new ContinuedEvent(this.THREAD_ID));
     }
 
     protected async nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): Promise<void> {
+        // ContinuedEvent instead of the StoppedEvent is needed because that ensures
+        // that while stepping the user cannot apply other debugging operations
+        this.sendEvent(new ContinuedEvent(this.THREAD_ID));
         await this.selectedDebugBackend?.stepOver(10000);
         this.sendResponse(response);
-        // this.sendEvent(new ContinuedEvent(this.THREAD_ID));
-        this.sendEvent(new StoppedEvent('step', this.THREAD_ID));
     }
 
     protected stepBackRequest(response: DebugProtocol.StepBackResponse, args: DebugProtocol.StepBackArguments, request?: DebugProtocol.Request): void {
@@ -399,6 +401,9 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
     }
 
     protected async stepOutRequest(response: DebugProtocol.StepOutResponse, args: DebugProtocol.StepOutArguments, request?: DebugProtocol.Request): Promise<void> {
+        // ContinuedEvent instead of the StoppedEvent is needed because that ensures
+        // that while stepping the user cannot apply other debugging operations
+        this.sendEvent(new ContinuedEvent(this.THREAD_ID));
         await this.selectedDebugBackend?.stepOut(10000);
         this.sendResponse(response);
     }
