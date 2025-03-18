@@ -50,6 +50,9 @@ export function activate(context: vscode.ExtensionContext) {
         }
         viewDeviceCommand(factory.warduino, resource);
     }));
+    context.subscriptions.push(vscode.commands.registerCommand('warduinodebug.stepLoop', async () => {
+        await factory.warduino?.stepLoop();
+    }));
 }
 
 function installDiagnosticReporting(context: vscode.ExtensionContext) {

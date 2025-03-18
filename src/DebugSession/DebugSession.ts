@@ -401,8 +401,13 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
     protected async stepOutRequest(response: DebugProtocol.StepOutResponse, args: DebugProtocol.StepOutArguments, request?: DebugProtocol.Request): Promise<void> {
         await this.selectedDebugBackend?.stepOut(10000);
         this.sendResponse(response);
-        // this.sendEvent(new ContinuedEvent(this.THREAD_ID));
-        this.sendEvent(new StoppedEvent('step', this.THREAD_ID));
+    }
+
+    async stepLoop(): Promise<void>{
+        // ContinuedEvent instead of the StoppedEvent is needed because that ensures
+        // that while stepping the user cannot apply other debugging operations
+        this.sendEvent(new ContinuedEvent(this.THREAD_ID));
+        await this.selectedDebugBackend?.stepIteration();
     }
 
 

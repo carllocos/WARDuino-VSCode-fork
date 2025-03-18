@@ -300,6 +300,12 @@ export class RemoteDebuggerBackend extends EventEmitter {
         await this.registerLocsAndRun(nextPossibleSpots, timeout);
     }
 
+    async stepIteration(): Promise<void>{
+        const sn = this.findStartNode();
+        const nextPossibleSpots = DebugOperations.stepIteration(this.context.langAdaptors.sourceCFGs, sn);
+        await this.registerLocsAndRun(nextPossibleSpots, 30000);
+    }
+
     async stepOver(timeout?: number): Promise<void> {
         const nextPossibleSpots: Array<[SourceCFGNode, number]> = [];
         if(this.isCallBackInProgress()){

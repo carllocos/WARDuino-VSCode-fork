@@ -92,6 +92,10 @@
         "category": "WARDuino",
         "title": "View the session of the device",
         "icon": "$(eye)"
+      },{
+        "command": "warduinodebug.stepLoop",
+        "title": "Close All Editors in Group",
+        "icon": "$(arrow-right)"
       }
     ],
     "views": {
@@ -168,6 +172,13 @@
           "command": "warduinodebug.viewDevice",
           "when": "view == devicesView",
           "group": "inline"
+        }
+      ],
+      "debug/toolBar": [
+        {
+          "command": "warduinodebug.stepLoop",
+          "group": "navigation",
+          "when": "inDebugMode"
         }
       ]
     },
