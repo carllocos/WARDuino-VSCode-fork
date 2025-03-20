@@ -18,6 +18,7 @@ export class CallstackFrame {
     public readonly function?: WASMFunction;
     private _locals: WasmLocal[];
     private _arguments: WasmitoVariableInfo[];
+    private readonly _returnAddress: number;
 
     constructor(frame: WASM.Frame, sourceMap: LanguageAdaptor, wasmAddress: number, stack: StackValues){
         this.frame = frame;
@@ -31,7 +32,9 @@ export class CallstackFrame {
         this.function = this.getFunction();
         this._locals = this.getLocalsFromStack(stack);
         this._arguments = this.getArgumentsFromStack(stack);
+        this._returnAddress = frame.ra;
     }
+
     copy(args?: {frame?: WASM.Frame, sourceMap?: LanguageAdaptor, wasmAddress?: number, stack?: StackValues}): CallstackFrame {
         const f = args?.frame === undefined ? this.frame : args.frame;
         const s = args?.sourceMap === undefined ? this.sourceMap : args.sourceMap;
@@ -60,6 +63,10 @@ export class CallstackFrame {
     get arguments(): WasmitoVariableInfo[]{
   
         return this._arguments;
+    }
+
+    get returnAddress(): number{
+        return this._returnAddress;
     }
 
     private pointsToSourceCodeLocation(): boolean {
@@ -208,7 +215,6 @@ export class Callstack {
         // return this.frames[this.frames.length - 1];
         throw Error('tODO');
     }
-
 }
 
 

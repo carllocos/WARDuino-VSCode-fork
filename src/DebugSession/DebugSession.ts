@@ -378,6 +378,7 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
             if(this.selectedDebugBackend.isPaused()){
                 await this.selectedDebugBackend.refreshState(); // TODO make more general
                 await this.selectedDebugBackend.advanceToNextReachableSourceCodeLocation(6000);
+                await this.breakOnInterrupts();
                 this.onPause();
             } else{
                 this.onRunning();
@@ -541,6 +542,11 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
 
 
     // Commands
+
+
+    public async breakOnInterrupts(): Promise<void> {
+        await this.selectedDebugBackend?.breakOnInterrupts();
+    }
 
     public upload() {
         this.debugBridge?.upload();

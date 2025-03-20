@@ -1,8 +1,9 @@
-import { DeviceManager, SourceCodeLocation, SourceMap, StateRequest, WARDuinoVM, WasmState, Platform, BoardFQBN, BoardBaudRate, VMConfigArgs, WASM, Breakpoint as WasmBreakpoint, OutOfPlaceVM, OutOfThingsMonitor, InputMode, ArduinoBoardBuilder, createArduinoPlatform, PlatformTarget, createDevPlatform, getFileName, equalSourceCodeLocations, LanguageAdaptor, sourceNodeFirstInstrStartAddr, HookOnWasmAddrRequest, InspectStateHook, SourceCFGNode, PauseVMHook, DebugOperations, sourceCodeLocationToString, strictEqualSourceCodeLocations} from 'wasmito';
+import { DeviceManager, SourceCodeLocation, StateRequest, WARDuinoVM, WasmState, WASM, Breakpoint as WasmBreakpoint, OutOfPlaceVM, OutOfThingsMonitor, InputMode, createArduinoPlatform, PlatformTarget, createDevPlatform, getFileName, equalSourceCodeLocations, LanguageAdaptor, sourceNodeFirstInstrStartAddr, HookOnWasmAddrRequest, InspectStateHook, SourceCFGNode, PauseVMHook, DebugOperations, sourceCodeLocationToString, strictEqualSourceCodeLocations, DestinationSCFGNode} from 'wasmito';
 import {EventEmitter} from 'events';
 import { Context, Events } from '../State/context';
 import { DebuggingMode, TargetProgram, UserDeviceConfig, UserEdwardDebuggingConfig, UserMCUConnectionConfig, UserOutOfThingsDebuggingConfig, UserRemoteDebuggingConfig } from '../DebuggerConfig';
 import {  Source } from 'vscode-debugadapter';
+import { CallbackSCFG } from 'wasmito/dist/types/src/cfg/callback_cfg';
 
 export class BackendDebuggerEvent {
     public static readonly StateUpdated: string = 'state updated';
@@ -84,6 +85,11 @@ export class RemoteDebuggerBackend extends EventEmitter {
     private _runningState: RunningState;
     private _isOutOfThingsDBG: boolean;
 
+    // callback related
+    private _callbacks: CallbackSCFG[];
+    private _breakOnInterruptOn: boolean;
+    private _callbackBreakpoints: BreakpointBackend[];
+
     constructor(vm: WARDuinoVM, debuggingMode: DebuggingMode, opts?: DbgOptArgs){
         super();
         this.targetVM = vm;
@@ -92,6 +98,9 @@ export class RemoteDebuggerBackend extends EventEmitter {
         this._breakpoints = [];
         this._runningState = opts?.initialRunningState ?? RunningState.paused;
         this._isOutOfThingsDBG = opts?.isOutOfThingsDebugger ?? false;
+        this._callbacks = this.targetVM.languageAdaptor.sourceCFGs.callbacksCFGs;
+        this._breakOnInterruptOn = false;
+        this._callbackBreakpoints = [];
     }
 
 
@@ -141,8 +150,6 @@ export class RemoteDebuggerBackend extends EventEmitter {
         if(!handled){
             throw Error('Event could not be handled');
         }
-        const pinNr = this.takeInterruptNr(ev.topic);
-        this.pinInterrupts.push(pinNr);
         
         this.emit(BackendDebuggerEvent.EventHandled, ev, this.targetVM.eventsToHandle);
     }
@@ -181,152 +188,59 @@ export class RemoteDebuggerBackend extends EventEmitter {
         return this.targetVM instanceof OutOfPlaceVM;
     }
 
-    private pinInterrupts: number[] = [];
-    private callbacksInProgress: number[]=[];
-    private returnAddress: number | undefined;
-    private pinToCallbackID= new Map<number, number[]>();
-
-    private async getCallbackTriggered() : Promise<number[]> {
-        if (this.pinInterrupts.length === 0 || this.isCallBackInProgress()){
-            return [];
+    async breakOnInterrupts(): Promise<void>{
+        if(this._breakOnInterruptOn){
+            return;
         }
+        this._breakOnInterruptOn = true;
 
-        const pinTriggered =  this.pinInterrupts.shift()!;
-        let callbackIDs = this.pinToCallbackID.get(pinTriggered);
-        if (callbackIDs === undefined || callbackIDs.length === 0){
-            const  state = await this.targetVM.inspect(new StateRequest().includeCallbackMappings().includeTable());
-            const cbs = state.callbacks;
-            const tbl = state.table;
-            if( cbs=== undefined || tbl === undefined){
-                throw new Error('This should not occur');
-            }
-            for(const cb of cbs){
-                const cbids = cb.tableIndexes.map((tidx)=>{
-                    return tbl.elements[tidx];
-                });
-                const pinNr = this.takeInterruptNr(cb.callbackid);
-                this.pinToCallbackID.set(pinNr, cbids);
-            }
-
+        const ns: DestinationSCFGNode[] = [];
+        for (const cb of this._callbacks){
+            ns.push(...cb.entryNodes);
         }
-        callbackIDs = this.pinToCallbackID.get(pinTriggered);
-        if (callbackIDs === undefined || callbackIDs.length === 0){
-            throw new Error(`Failed to find the Fun Wasm callback id triggered by pin ${pinTriggered}`);
-        }
-        this.callbacksInProgress =  callbackIDs;
-        if(this.returnAddress === undefined){
-            this.returnAddress =  this.context.pc;
-        }
-        return this.callbacksInProgress;
-    }
-
-    private async callbackDestinationNodes(): Promise<Array<[SourceCFGNode, number]>> {
-        const dn: Array<[SourceCFGNode, number]> = [];
-        const fIDs = await this.getCallbackTriggered();
-        // const fIDs: number[] = [];
-        for(const fID of fIDs){
-            const entryNodes = this.context.langAdaptors.sourceCFGs.getFunctionSourceCFG(fID)?.entryNodes ?? [];
-            for (const en of entryNodes){
-                const sa = sourceNodeFirstInstrStartAddr(en);
-                dn.push([en,sa]);
-            }
-        }
-
-        if(fIDs.length > 0 && dn.length === 0){
-        // this could happen for 3th party libs
-        // for now throw error
-            throw new Error(`Cannot find any SCFG for any of the callbackID ${fIDs}`);
-        }
-
-        return dn;
-    }
-    private async stepOutOfCallback(): Promise<Array<[SourceCFGNode, number]>> {
-        //callback completed
-        this.callbacksInProgress.length = 0;
-
-        const ns = await this.callbackDestinationNodes();
-        if(ns.length > 0){
-            // other callback will be triggered
-            // and return
-            return ns;
-        }
-
-        // all callbacks completed
-        // go back to the original address
-        if(this.returnAddress === undefined){
-            throw new Error('Failed to find a node for returnAddress');
-        }
-
-        // TODO use closestNeighbours
-        const sn = this.context.langAdaptors.sourceCFGs.nodesFromAddress(this.returnAddress);
-        if(sn === undefined){
-            throw new Error('cannot happen');
-        }
-        ns.push(...DebugOperations.stepOver(this.context.langAdaptors.sourceCFGs, sn));
-        this.returnAddress = undefined;
-        return ns;
-    }
-
-
-    private isCallBackInProgress(): boolean{
-        return this.callbacksInProgress.length > 0;
+        const runAfterAddingBPs = false;
+        this.addDestinationNodesAndRun(ns, this._callbackBreakpoints, 10000, runAfterAddingBPs);
     }
 
     async step(timeout?: number): Promise<void> {
-        const nextPossibleSpots = await this.callbackDestinationNodes();
-        if(nextPossibleSpots.length === 0){
-            // not entering in an interrupt
-            const sn = this.findStartNode();
-            nextPossibleSpots.push(...DebugOperations.stepIn(this.context.langAdaptors.sourceCFGs, sn));
-        }
-
-        if(nextPossibleSpots.length === 0 && this.callbacksInProgress.length > 0){
-            //callback completed
-            nextPossibleSpots.push(...await this.stepOutOfCallback());
-        }
-
-        await this.registerLocsAndRun(nextPossibleSpots, timeout);
+        const sn = this.findStartNode();
+        const dn = DebugOperations.stepIn(this.context.langAdaptors.sourceCFGs, sn);
+        await this.addDestinationNodesAndRun(dn,this.operationSetBreakpoints, timeout);
     }
 
     async stepOut(timeout?: number): Promise<void> {
-        const nextPossibleSpots: Array<[SourceCFGNode, number]> = [];
-        if(this.isCallBackInProgress()){
-            nextPossibleSpots.push(...await this.stepOutOfCallback());
-        }
-        else{
-            const sn = this.findStartNode();
-            nextPossibleSpots.push(...DebugOperations.stepOut(this.context.langAdaptors.sourceCFGs, sn));
-        }
-        await this.registerLocsAndRun(nextPossibleSpots, timeout);
+        const sn = this.findStartNode();
+        const dn = DebugOperations.stepOut(this.context.langAdaptors.sourceCFGs, sn);
+        await this.addDestinationNodesAndRun(dn, this.operationSetBreakpoints, timeout);
     }
 
     async stepIteration(): Promise<void>{
         const sn = this.findStartNode();
         const nextPossibleSpots = DebugOperations.stepIteration(this.context.langAdaptors.sourceCFGs, sn);
-        await this.registerLocsAndRun(nextPossibleSpots, 30000);
+        await this.addDestinationNodesAndRun(nextPossibleSpots, this.operationSetBreakpoints, 30000);
     }
 
     async stepOver(timeout?: number): Promise<void> {
-        const nextPossibleSpots: Array<[SourceCFGNode, number]> = [];
-        if(this.isCallBackInProgress()){
-            nextPossibleSpots.push(...await this.stepOutOfCallback());
-        }
-        else{
-            const sn = this.findStartNode();
-            nextPossibleSpots.push(...DebugOperations.stepOver(this.context.langAdaptors.sourceCFGs, sn));
-        }
-        await this.registerLocsAndRun(nextPossibleSpots, timeout);
+        const sn = this.findStartNode();
+        const dn = DebugOperations.stepOver(this.context.langAdaptors.sourceCFGs, sn);
+        await this.addDestinationNodesAndRun(dn, this.operationSetBreakpoints, timeout);
     }
 
   
     private operationSetBreakpoints: BreakpointBackend[] = [];
 
     private onBreakpointReached(state: WasmState): void {
-        console.log('Breakpoint reached');
-        this.removeOperationBreakpoints().finally(()=>{
-            this.context =  new Context(state, this.targetVM.languageAdaptor);
+        let newContext =  new Context(state, this.targetVM.languageAdaptor);
+        this.removeBreakpointsIfNeeded(newContext).finally(()=>{
+            this.context = newContext;
             this.emit(BackendDebuggerEvent.BreakpointReached, this.context, this.context.getCurrentSourceCodeLocation()!);
         });
+    }
+
+
+    private async removeBreakpointsIfNeeded(newContext: Context): Promise<void>{
+        await this.removeOperationBreakpoints();
+        await this.removeInterruptBreakpoints(newContext);
     }
 
 
@@ -341,6 +255,91 @@ export class RemoteDebuggerBackend extends EventEmitter {
 
         this.operationSetBreakpoints.length = 0;
     }
+
+    private returnBreakpoints: BreakpointBackend[] = [];
+
+    private async removeReturnBreakpoints(timeout?: number): Promise<void> {
+        for (const bp of this.returnBreakpoints){
+            const l = bp.bp.sourceCodeLocation;
+            const wbp =  new WasmBreakpoint(l);
+            const success = this.targetVM.removeBreakpoint(wbp, timeout);
+            if(!success){
+                throw new Error(`Failed to remove breakpoint set to stop after completing interrupt bp: ${sourceCodeLocationToString(l)}`);
+            }
+        }
+        this.returnBreakpoints.length = 0;
+    }
+
+    private async removeInterruptBreakpoints(c: Context, timeout?: number): Promise<void>{
+
+        const interruptCompleted = this.returnBreakpoints.find((bp)=>bp.bp.sourceCodeLocation.address=== c.pc);
+        if(interruptCompleted !== undefined){
+            // the end of the interrupt is reached
+            // remove all return address breakpoints
+            await this.removeReturnBreakpoints(timeout);
+            return;
+        }
+
+        const bpReached = this._callbackBreakpoints.find((b)=>{
+            return b.sourceCodeLocation.address === c.pc;
+        });
+        if(bpReached === undefined){
+            // no interrupt callback got executed
+            return;
+        }
+        if(this.returnBreakpoints.length > 0){
+            // an interrupt got triggered just immediately after another interrupt
+            // and just before reaching the return addressess
+            // remove those breakpoints
+            await this.removeReturnBreakpoints(timeout);
+        }
+
+        // TODO remove other reachable callback breakpoints
+
+        const returnAddresses = c.callstack.frames().map(f=>f.returnAddress).reverse();
+        if(returnAddresses.length === 0){return;}
+
+        let oneReturnAddressFound = false;
+        for (const ra of returnAddresses){
+
+            const locs = this.getLanguageAdaptor().sourceCFGs.sourceMap.getOriginalPositionFor(ra);
+            if(locs.length > 1){
+                const locsStr = locs.map((l)=> sourceCodeLocationToString(l)).join(', ');
+                throw new Error(`More than one location found for address ${ra}: [${locsStr}]`);
+            }
+
+            if(locs.length === 0){
+                const ns = this.getLanguageAdaptor().sourceCFGs.nextReachableSourceNodesFromAddr(ra);
+                for(const [n,a] of ns){
+                    const newLoc = Object.assign({}, n.sourceLocation);
+                    newLoc.address = a;
+                    locs.push(newLoc);
+                }
+            }
+            if(locs.length === 0){
+                continue;
+            }
+
+            oneReturnAddressFound = true;
+            for (const loc of locs){
+                const wbp =  new WasmBreakpoint(loc);
+                wbp.subscribe(this.onBreakpointReached.bind(this));
+                const source = new Source(getFileName(loc.source), loc.source);
+                const succ = this.targetVM.addBreakpoint(wbp, timeout);
+                if(!succ){
+                    throw new Error(`failed to add breakpoint at ${sourceCodeLocationToString(loc)}`);
+                }
+                this.returnBreakpoints.push(new BreakpointBackend(wbp, source));
+            }
+            break;
+        }
+        if(!oneReturnAddressFound){
+            throw new Error('Failed to compute a return address');
+        }
+    }
+
+
+
     private findStartNode(): SourceCFGNode {
         const loc = this.context.getCurrentSourceCodeLocation();
         if(loc === undefined){
@@ -351,7 +350,7 @@ export class RemoteDebuggerBackend extends EventEmitter {
         return loc;
     }
 
-    private async registerLocsAndRun(destinationNodes: Array<[SourceCFGNode, number]>, timeout?: number): Promise<boolean>{
+    private async addDestinationNodesAndRun(destinationNodes: DestinationSCFGNode[], storeBps: BreakpointBackend[], timeout?: number,runAfterAddr:boolean = true): Promise<boolean>{
         for (const [np, addr] of destinationNodes){
             const l = Object.assign({}, np.sourceLocation);
             l.address = addr;
@@ -366,13 +365,17 @@ export class RemoteDebuggerBackend extends EventEmitter {
                 continue;
             }
 
-            const success =await this.addBreakpoint(l, this.operationSetBreakpoints);
+            const success =await this.addBreakpoint(l, storeBps);
             if(!success){
                 throw new Error(`Failed to add bp to ${sourceCodeLocationToString(l)}`);
             }
 
         }
-        return await this.run(timeout);
+        if(runAfterAddr){
+            return await this.run(timeout);
+        }else{
+            return true;
+        }
     }
 
 
@@ -407,8 +410,6 @@ export class RemoteDebuggerBackend extends EventEmitter {
             allEvents = this.targetVM.eventsToHandle;
         }else{
             allEvents.push(ev);
-            const pinID = this.takeInterruptNr(ev.topic);
-            this.pinInterrupts.push(pinID);
         }
 
 
@@ -564,8 +565,8 @@ export class RemoteDebuggerBackend extends EventEmitter {
         }
         // advance to the closest source code location
         const addr = this.context.pc!;
-        const destinationNodes = this.getLanguageAdaptor().sourceCFGs.nextReachableSourceNodes(addr);
-        this.registerLocsAndRun(destinationNodes, timeout);
+        const destinationNodes = this.getLanguageAdaptor().sourceCFGs.nextReachableSourceNodesFromAddr(addr);
+        this.addDestinationNodesAndRun(destinationNodes, this.operationSetBreakpoints, timeout);
     }
 }
 
