@@ -1,4 +1,4 @@
-import { DeviceManager, SourceCodeLocation, StateRequest, WARDuinoVM, WasmState, WASM, Breakpoint as WasmBreakpoint, OutOfPlaceVM, OutOfThingsMonitor, InputMode, createArduinoPlatform, PlatformTarget, createDevPlatform, getFileName, equalSourceCodeLocations, LanguageAdaptor, sourceNodeFirstInstrStartAddr, HookOnWasmAddrRequest, InspectStateHook, SourceCFGNode, PauseVMHook, DebugOperations, sourceCodeLocationToString, strictEqualSourceCodeLocations, DestinationSCFGNode} from 'wasmito';
+import { DeviceManager, SourceCodeLocation, StateRequest, WasmitoBackendVM, WasmState, WASM, Breakpoint as WasmBreakpoint, OutOfPlaceVM, OutOfThingsMonitor, InputMode, createArduinoPlatform, PlatformTarget, createDevPlatform, getFileName, equalSourceCodeLocations, LanguageAdaptor, sourceNodeFirstInstrStartAddr, HookOnWasmAddrRequest, InspectStateHook, SourceCFGNode, PauseVMHook, DebugOperations, sourceCodeLocationToString, strictEqualSourceCodeLocations, DestinationSCFGNode} from 'wasmito';
 import {EventEmitter} from 'events';
 import { Context, Events } from '../State/context';
 import { DebuggingMode, TargetProgram, UserDeviceConfig, UserEdwardDebuggingConfig, UserMCUConnectionConfig, UserOutOfThingsDebuggingConfig, UserRemoteDebuggingConfig } from '../DebuggerConfig';
@@ -75,7 +75,7 @@ export interface DbgOptArgs {
 
 export class RemoteDebuggerBackend extends EventEmitter {
 
-    public readonly targetVM: WARDuinoVM;
+    public readonly targetVM: WasmitoBackendVM;
     public readonly debuggingMode: DebuggingMode;
     private context: Context;
 
@@ -90,7 +90,7 @@ export class RemoteDebuggerBackend extends EventEmitter {
     private _breakOnInterruptOn: boolean;
     private _callbackBreakpoints: BreakpointBackend[];
 
-    constructor(vm: WARDuinoVM, debuggingMode: DebuggingMode, opts?: DbgOptArgs){
+    constructor(vm: WasmitoBackendVM, debuggingMode: DebuggingMode, opts?: DbgOptArgs){
         super();
         this.targetVM = vm;
         this.debuggingMode = debuggingMode;
@@ -184,7 +184,7 @@ export class RemoteDebuggerBackend extends EventEmitter {
         this._runningState = RunningState.paused;
     }
 
-    private isOutOfPlace(vm: WARDuinoVM): vm is OutOfPlaceVM{
+    private isOutOfPlace(vm: WasmitoBackendVM): vm is OutOfPlaceVM{
         return this.targetVM instanceof OutOfPlaceVM;
     }
 
@@ -570,7 +570,7 @@ export class RemoteDebuggerBackend extends EventEmitter {
     }
 }
 
-export async function createTargetVM(deviceManager: DeviceManager, platformTarget: PlatformTarget,  deploy: boolean, targetProgram: TargetProgram,  toolPort: number | undefined, mcuConfig: UserMCUConnectionConfig | undefined, pauseOnDeploy: boolean): Promise<WARDuinoVM> 
+export async function createTargetVM(deviceManager: DeviceManager, platformTarget: PlatformTarget,  deploy: boolean, targetProgram: TargetProgram,  toolPort: number | undefined, mcuConfig: UserMCUConnectionConfig | undefined, pauseOnDeploy: boolean): Promise<WasmitoBackendVM> 
 {
     if(platformTarget === PlatformTarget.DevVM){
         const platform = await createDevPlatform({
