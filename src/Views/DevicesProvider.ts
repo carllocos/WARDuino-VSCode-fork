@@ -3,7 +3,7 @@ import { ProviderResult, TreeItem, TreeItemCollapsibleState } from 'vscode';
 import { OldRuntimeState } from '../State/RuntimeState';
 import { RuntimeViewRefreshInterface } from './RuntimeViewRefreshInterface';
 import { Context} from '../State/context';
-import { DeviceManager, WARDuinoVM } from 'wasmito';
+import { DeviceManager} from 'wasmito';
 import { DEVICESVIEWCONFIG } from './ViewsConstants';
 import { VIEW_DEVICE_COMMAND } from '../Commands/CommandsConstants';
 import { RemoteDebuggerBackend } from '../DebugSession/DebuggerBackend';
