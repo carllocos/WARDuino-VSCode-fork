@@ -19,6 +19,7 @@
         "indent": ["warn", 4, { "SwitchCase": 1 , "FunctionDeclaration": {"parameters": "first"}}]
     },
     "ignorePatterns": [
+        "node_modules/**/*.d.ts",
         "out",
         "dist",
         "**/*.d.ts"
