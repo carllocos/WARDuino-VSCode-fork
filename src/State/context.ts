@@ -70,7 +70,10 @@ export class CallstackFrame {
     }
 
     private pointsToSourceCodeLocation(): boolean {
-        return this.frameType !== WASM.FrameType.CALLBACK_GUARD && this.frameType !== WASM.FrameType.PROXY_GUARD;
+        // return this.frameType !== WASM.FrameType.CALLBACK_GUARD && this.frameType !== WASM.FrameType.PROXY_GUARD;
+        // TODO: invesitage why, in an older version I do not generate the source location for a callback guard, as above, why?
+        // Perhaps, it is also needed to not show the source location for particular cases of callback guards?
+        return this.frameType !== WASM.FrameType.PROXY_GUARD;
     }
 
     private getSourceCodeLocation(): SourceCFGNode | undefined {
