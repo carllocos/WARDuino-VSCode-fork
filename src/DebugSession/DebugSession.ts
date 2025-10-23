@@ -405,6 +405,18 @@ export class WARDuinoDebugSession extends LoggingDebugSession {
         await this.selectedDebugBackend?.stepIteration();
     }
 
+    async stepRecursiveCall(): Promise<void>{
+        this.sendEvent(new ContinuedEvent(this.THREAD_ID));
+        await this.selectedDebugBackend?.stepRecursiveCall();
+    }
+
+    async stepUntilCall(): Promise<void>{
+        this.sendEvent(new ContinuedEvent(this.THREAD_ID));
+        const advanced = await this.selectedDebugBackend?.stepUntilCall();
+        if(!advanced){
+            this.sendEvent(new StoppedEvent('pause', this.THREAD_ID));
+        }
+    }
 
     protected async setVariableRequest(response: DebugProtocol.SetVariableResponse, args: DebugProtocol.SetVariableArguments): Promise<void> {
         // const v = this.variableHandles.get(args.variablesReference);

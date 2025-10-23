@@ -220,6 +220,22 @@ export class RemoteDebuggerBackend extends EventEmitter {
         await this.addDestinationNodesAndRun(nextPossibleSpots, this.operationSetBreakpoints, 30000);
     }
 
+    async stepRecursiveCall(): Promise<void>{
+        const sn = this.findStartNode();
+        const nextPossibleSpots = DebugOperations.stepRecursiveCall(this.context.langAdaptors.sourceCFGs, sn);
+        await this.addDestinationNodesAndRun(nextPossibleSpots, this.operationSetBreakpoints, 30000);
+    }
+
+    async stepUntilCall(): Promise<boolean>{
+        const sn = this.findStartNode();
+        const nextPossibleSpots = DebugOperations.stepUntilCall(this.context.langAdaptors.sourceCFGs, sn);
+        if(nextPossibleSpots.length === 0){
+            return false;
+        }
+        await this.addDestinationNodesAndRun(nextPossibleSpots, this.operationSetBreakpoints, 30000);
+        return true;
+    }
+
     async stepOver(timeout?: number): Promise<void> {
         const sn = this.findStartNode();
         const dn = DebugOperations.stepOver(this.context.langAdaptors.sourceCFGs, sn);

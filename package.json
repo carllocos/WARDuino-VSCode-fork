@@ -92,10 +92,29 @@
         "category": "WARDuino",
         "title": "View the session of the device",
         "icon": "$(eye)"
-      },{
+      },
+      {
         "command": "warduinodebug.stepLoop",
-        "title": "Close All Editors in Group",
+        "title": "Step to the next iteration",
         "icon": "$(arrow-right)"
+      },
+      {
+        "command": "warduinodebug.stepRecursiveCall",
+        "category": "WARDuino",
+        "title": "Step Recursive Call",
+        "icon": "$(arrow-circle-up)"
+      },
+      {
+        "command": "warduinodebug.stepUntilCall",
+        "category": "WARDuino",
+        "title": "Step Until Start Func Call",
+        "icon": "$(arrow-circle-up)"
+      },
+      {
+        "command": "warduinodebug.breakOnInterrupts",
+        "category": "WARDuino",
+        "title": "Break On Interrupts",
+        "icon": "$(arrow-circle-up)"
       }
     ],
     "views": {

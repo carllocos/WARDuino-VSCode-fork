@@ -53,6 +53,15 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand('warduinodebug.stepLoop', async () => {
         await factory.warduino?.stepLoop();
     }));
+    context.subscriptions.push(vscode.commands.registerCommand('warduinodebug.stepRecursiveCall', async () => {
+        await factory.warduino?.stepRecursiveCall();
+    }));
+    context.subscriptions.push(vscode.commands.registerCommand('warduinodebug.stepUntilCall', async () => {
+        await factory.warduino?.stepUntilCall();
+    }));
+    context.subscriptions.push(vscode.commands.registerCommand('warduinodebug.breakOnInterrupts', async () => {
+        await factory.warduino?.breakOnInterrupts();
+    }));
 }
 
 function installDiagnosticReporting(context: vscode.ExtensionContext) {
