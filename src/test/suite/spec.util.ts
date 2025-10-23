@@ -31,19 +31,22 @@ interface Cursor {
 
 export function parseResult(input: string): Value | undefined {
     let cursor = 0;
-    let delta: number = consume(input, cursor, /\(/d);
+    // todo check if [0-9]/ correctly replaces old regex /d
+    let delta: number = consume(input, cursor, /\([0-9]/);
     if (delta === 0) {
         return undefined;
     }
     cursor += delta;
 
-    delta = consume(input, cursor, /^[^.)]*/d);
+    // todo check if [0-9]/ correctly replaces old regex /d
+    delta = consume(input, cursor, /^[^.)]*[0-9]/);
     const type: Type = typing.get(input.slice(cursor, cursor + delta)) ?? Type.i64;
 
     cursor += delta + consume(input, cursor + delta);
 
     let value;
-    delta = consume(input, cursor, /^[^)]*/d);
+    // todo check if [0-9]/ correctly replaces old regex /d
+    delta = consume(input, cursor, /^[^)]*[0-9]/);
     if (type === Type.f32 || type === Type.f64) {
         value = parseHexFloat(input.slice(cursor, cursor + delta));
     } else {
@@ -60,19 +63,24 @@ export function parseResult(input: string): Value | undefined {
 export function parseArguments(input: string, index: Cursor): Value[] {
     const args: Value[] = [];
 
-    let cursor: number = consume(input, 0, /invoke "[^"]+"/d);
+    // todo check if [0-9]/ correctly replaces old regex /d
+    let cursor: number = consume(input, 0, /invoke "[^"]+"[0-9]/);
     while (cursor < input.length) {
-        let delta: number = consume(input, cursor, /^[^)]*\(/d);
+        // todo check if [0-9]/ correctly replaces old regex /d
+        let delta: number = consume(input, cursor, /^[^)]*\([0-9]/);
         if (delta === 0) {
             break;
         }
         cursor += delta;
 
-        delta = consume(input, cursor, /^[^.)]*/d);
+        // todo check if [0-9]/ correctly replaces old regex /d
+        delta = consume(input, cursor, /^[^.)]*[0-9]/);
         const type: Type = typing.get(input.slice(cursor + delta - 3, cursor + delta)) ?? Type.i64;
 
-        cursor += delta + consume(input, cursor + delta, /^[^)]*const /d);
-        delta = consume(input, cursor, /^[^)]*/d);
+        // todo check if [0-9]/ correctly replaces old regex /d
+        cursor += delta + consume(input, cursor + delta, /^[^)]*const [0-9]/);
+        // todo check if [0-9]/ correctly replaces old regex /d
+        delta = consume(input, cursor, /^[^)]*[0-9]/);
         let maybe: number | undefined;
         if (type === Type.f32 || type === Type.f64) {
             maybe = parseHexFloat(input.slice(cursor, cursor + delta));
@@ -84,7 +92,8 @@ export function parseArguments(input: string, index: Cursor): Value[] {
             args.push({type, value: maybe});
         }
 
-        cursor += consume(input, cursor, /\)/d);
+        // todo check if [0-9]/ correctly replaces old regex /d
+        cursor += consume(input, cursor, /\)[0-9]/);
         if (input[cursor] === ')') {
             break;
         }
@@ -95,7 +104,8 @@ export function parseArguments(input: string, index: Cursor): Value[] {
     return args;
 }
 
-function consume(input: string, cursor: number, regex: RegExp = / /d): number {
+// todo check if [0-9]/ correctly replaces old regex /d
+function consume(input: string, cursor: number, regex: RegExp = / [0-9]/): number {
     const match = regex.exec(input.slice(cursor));
     // @ts-ignore
     return (match?.indices[0][1]) ?? 0;
