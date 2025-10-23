@@ -252,8 +252,9 @@ export abstract class AbstractDebugBridge extends EventEmitter implements DebugB
     }
 
     private lineToAddress(line: number): number {
-        const lineInfoPair = this.sourceMap?.lineInfoPairs.find(info => info.lineInfo.line === line);
-        return parseInt('0x' + lineInfoPair?.lineAddress ?? '');
+        const lineInfoPair = this.sourceMap.lineInfoPairs.find(info => info.lineInfo.line === line);
+        const addr = lineInfoPair?.lineAddress ?? '';
+        return parseInt('0x' + addr)
     }
 
 
