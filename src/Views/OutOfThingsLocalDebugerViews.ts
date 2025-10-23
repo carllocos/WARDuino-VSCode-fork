@@ -5,7 +5,7 @@ import { RuntimeViewsRefresher } from './ViewsRefresh';
 import { EVENTSVIEWCONFIG, EVENTS_PROVIDER, PROXIESVIEWCONFIG, PROXIES_PROVIDER, STACKVIEWCONFIG, STACK_PROVIDER, ViewsConfig } from './ViewsConstants';
 import { Context } from '../State/context';
 import {SourceCodeLocation, WASM} from 'wasmito';
-import { StoppedEvent } from 'vscode-debugadapter';
+import { StoppedEvent } from '@vscode/debugadapter';
 
 export class OutOfThingsLocalDebuggerViews extends RuntimeViewsRefresher {
     private isHidden: boolean;

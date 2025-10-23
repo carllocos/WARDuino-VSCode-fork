@@ -1,8 +1,5 @@
 import * as vscode from 'vscode';
-import {
-    ContinuedEvent,
-    StoppedEvent
-} from 'vscode-debugadapter';
+import { ContinuedEvent, StoppedEvent } from '@vscode/debugadapter';
 import { WARDuinoDebugSession } from '../DebugSession/DebugSession';
 import { DebugBridge } from './DebugBridge';
 import { DebugBridgeListenerInterface } from './DebugBridgeListenerInterface';

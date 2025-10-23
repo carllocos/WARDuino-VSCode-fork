@@ -4,7 +4,7 @@ import { BackendDebuggerEvent, RemoteDebuggerBackend } from '../DebugSession/Deb
 import { WARDuinoDebugSession } from '../DebugSession/DebugSession';
 import { Context} from '../State/context';
 import {SourceCodeLocation, WASM} from 'wasmito';
-import { StoppedEvent } from 'vscode-debugadapter';
+import { StoppedEvent } from '@vscode/debugadapter/lib/debugSession';
 import { EVENTSVIEWCONFIG, EVENTS_PROVIDER, STACKVIEWCONFIG, STACK_PROVIDER } from './ViewsConstants';
 
 export class RemoteDebuggerViews extends RuntimeViewsRefresher {

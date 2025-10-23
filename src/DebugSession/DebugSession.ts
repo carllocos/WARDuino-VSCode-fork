@@ -1,20 +1,8 @@
-import {DebugProtocol} from 'vscode-debugprotocol';
 import {basename} from 'path-browserify';
 import * as vscode from 'vscode';
 
-import {
-    ContinuedEvent,
-    ExitedEvent,
-    Handles,
-    InitializedEvent,
-    LoggingDebugSession,
-    Scope,
-    Source,
-    StackFrame,
-    StoppedEvent,
-    TerminatedEvent,
-    Thread
-} from 'vscode-debugadapter';
+import { ContinuedEvent, Handles, InitializedEvent, LoggingDebugSession, Scope, Source, StackFrame, StoppedEvent, TerminatedEvent, Thread } from '@vscode/debugadapter';
+import { DebugProtocol } from '@vscode/debugprotocol';
 import {CompileTimeError} from '../CompilerBridges/CompileTimeError';
 import {ErrorReporter} from './ErrorReporter';
 import {DebugBridge} from '../DebugBridges/DebugBridge';

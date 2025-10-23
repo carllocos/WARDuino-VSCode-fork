@@ -4,7 +4,7 @@ import { BackendDebuggerEvent, RemoteDebuggerBackend } from '../DebugSession/Deb
 import { WARDuinoDebugSession } from '../DebugSession/DebugSession';
 import { Context} from '../State/context';
 import {BreakpointDefaultPolicy, SourceCodeLocation, WASM, WasmState} from 'wasmito';
-import { StoppedEvent } from 'vscode-debugadapter';
+import { StoppedEvent } from '@vscode/debugadapter';
 import { BREAKPOINTPOLICIESVIEWCONFIG, BREAKPOINT_POLICY_PROVIDER, EVENTSVIEWCONFIG, EVENTS_PROVIDER, OOTMONITORVIEWCONFIG, PROXIESVIEWCONFIG, SESSION_PROVIDER, STACKVIEWCONFIG } from './ViewsConstants';
 
 export class OutOfThingsTargetDebuggerViews extends RuntimeViewsRefresher {

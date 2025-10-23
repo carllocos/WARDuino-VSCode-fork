@@ -2,7 +2,7 @@ import { DeviceManager, SourceCodeLocation, StateRequest, WasmitoBackendVM, Wasm
 import {EventEmitter} from 'events';
 import { Context, Events } from '../State/context';
 import { DebuggingMode, TargetProgram, UserDeviceConfig, UserEdwardDebuggingConfig, UserMCUConnectionConfig, UserOutOfThingsDebuggingConfig, UserRemoteDebuggingConfig } from '../DebuggerConfig';
-import {  Source } from 'vscode-debugadapter';
+import { Source } from '@vscode/debugadapter';
 import { CallbackSCFG } from 'wasmito/dist/types/src/cfg/callback_cfg';
 
 export class BackendDebuggerEvent {
