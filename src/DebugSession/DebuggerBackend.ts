@@ -262,7 +262,6 @@ export class RemoteDebuggerBackend extends EventEmitter {
 
     private async removeOperationBreakpoints(timeout?: number): Promise<void>{
         for (const bp of this.operationSetBreakpoints){
-            bp.sourceCodeLocation;
             const success =  await this.targetVM.removeBreakpoint(bp.bp, timeout);
             if(!success){
                 throw new Error(`Failed to remove operation breakpoint set at ${sourceCodeLocationToString(bp.sourceCodeLocation)}`);
