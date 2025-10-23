@@ -32,6 +32,7 @@ interface OnStartBreakpoint {
 // Interface between the debugger and the VS runtime
 export class WARDuinoDebugSession extends LoggingDebugSession {
     private program: string = '';
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     readonly THREAD_ID: number = 42;
     private debugBridge?: DebugBridge;
     // private proxyBridge?: DebugBridge;
